@@ -1,0 +1,303 @@
+"""Reading readsb's JSON, merging the sources, trails, colours and the feed's features."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from custom_components.adsb_live.aircraft import Aircraft, Trails, build_features, in_area, merge, notices, parse_aircraft
+from custom_components.adsb_live.api import normalize_url, without_login
+from custom_components.adsb_live.colors import GROUND_COLOR, UNKNOWN_COLOR, altitude_color, legend
+from custom_components.adsb_live.const import LANGUAGES
+from custom_components.adsb_live.geo import Area
+from custom_components.adsb_live.health import receiver_health
+from custom_components.adsb_live.texts import PLACEHOLDER, Texts, load_texts
+
+from .conftest import AREA, RECEIVER_POSITION, adsb_fi_aircraft, local_aircraft, stats
+
+ENGLISH = load_texts("en")
+FINNISH = load_texts("fi")
+COMPONENT_DIR = Path(__file__).parent.parent / "custom_components" / "adsb_live"
+
+
+def plane(hex_code: str, position_time: float, longitude: float, latitude: float = 61.5, **data: object) -> Aircraft:
+    return Aircraft(hex_code, latitude, longitude, position_time, "adsb", data)
+
+
+def features_of(aircraft: list[Aircraft], texts: Any = ENGLISH, unit: str = "m", colors: bool = False) -> list[dict[str, Any]]:
+    return build_features(aircraft, RECEIVER_POSITION, None, texts, unit, colors)
+
+
+def test_only_live_positions_of_aircraft_are_read() -> None:
+    aircraft = parse_aircraft(local_aircraft())
+    assert [(plane.hex, plane.source) for plane in aircraft] == [
+        ("46a1b2", "adsb"),
+        ("461f00", "mlat"),
+        ("462000", "adsb"),
+        ("466000", "adsb"),
+    ], "a stale position, no position and a ground vehicle are left out"
+
+
+def test_adsb_fi_gives_its_time_in_milliseconds() -> None:
+    data = adsb_fi_aircraft()
+    aircraft = parse_aircraft(data, remote=True)
+    assert [plane.source for plane in aircraft] == ["adsb_fi", "adsb_fi"]
+    assert abs(aircraft[1].position_time - (data["now"] / 1000 - 0.5)) < 0.001
+
+
+def test_the_receiver_wins_over_adsb_fi() -> None:
+    local = parse_aircraft(local_aircraft())
+    merged = merge(local, parse_aircraft(adsb_fi_aircraft(), remote=True))
+    assert [plane.hex for plane in merged] == ["46a1b2", "461f00", "462000", "466000", "4ca123"]
+    assert merged[0].source == "adsb"
+
+
+def test_features_are_nearest_first_with_their_details() -> None:
+    features = features_of(in_area(parse_aircraft(local_aircraft()), Area.from_selector(AREA)))
+    assert [feature["id"] for feature in features] == ["aircraft:461f00", "aircraft:46a1b2", "aircraft:462000"]
+
+    airliner = features[1]
+    assert airliner["geometry"] == {"type": "Point", "coordinates": [23.9, 61.55]}
+    properties = airliner["properties"]
+    assert properties["name"] == "EXA123"
+    assert properties["kind"] == "air.large"
+    assert properties["heading"] == 90
+    assert properties["speed_kmh"] == 556
+    assert "stationary" not in properties
+    assert "color" not in properties, "colours only when the feed asks for them"
+    assert properties["subtitle"] == "AIRBUS A-320 · Example Air"
+    assert properties["footer"] == "ICAO 46A1B2 · A3"
+    assert properties["list"] == {"value": "3,660 m"}
+    assert properties["altitude_ft"] == 12000
+    assert properties["details"] == [
+        {"label": "Altitude", "value": "3,660 m"},
+        {"label": "Vertical rate", "value": "descending 5.2 m/s"},
+        {"label": "Squawk", "value": "4521"},
+        {"label": "Registration", "value": "OH-ZZA"},
+        {"label": "Type", "value": "A320"},
+        {"label": "Distance", "value": f"{properties['distance_km']} km"},
+        {"label": "Source", "value": "ADS-B"},
+    ], "the operator is in the subtitle, not again as a row"
+    assert "notices" not in properties
+
+    light = features[0]["properties"]
+    assert light["name"] == "OH-ZZB", "without a callsign, the registration"
+    assert light["kind"] == "air.light"
+    assert {"label": "Vertical rate", "value": "level"} in light["details"]
+    assert {"label": "Source", "value": "MLAT"} in light["details"]
+
+    on_ground = features[2]["properties"]
+    assert on_ground["stationary"] is True
+    assert on_ground["altitude_ft"] == 0
+    assert on_ground["list"] == {"value": "on the ground"}
+    assert [row["label"] for row in on_ground["details"]][:2] == ["Altitude", "Distance"], "no vertical rate on the ground"
+
+
+def test_finnish_numbers_have_a_decimal_comma_and_spaces_between_thousands() -> None:
+    assert FINNISH.number(36000) == "36\u00a0000"
+    assert FINNISH.number(9.44, 1) == "9,4"
+    assert ENGLISH.number(36000) == "36,000"
+    assert ENGLISH.number(3657.6, -1) == "3,660"
+    features = features_of(parse_aircraft(local_aircraft())[:1], FINNISH)
+    assert features[0]["properties"]["details"][:2] == [
+        {"label": "Korkeus", "value": "3\u00a0660 m"},
+        {"label": "Pystynopeus", "value": "laskee 5,2 m/s"},
+    ]
+
+
+def test_an_altitude_just_below_sea_level_is_never_minus_zero() -> None:
+    for feet in (-1, -11, -16):
+        properties = features_of([plane("a", 0, 24.0, alt_baro=feet, baro_rate=-30)])[0]["properties"]
+        assert properties["details"][0] == {"label": "Altitude", "value": "0 m"}, feet
+        assert properties["list"] == {"value": "0 m"}
+    assert ENGLISH.number(-0.04, 1) == "0.0"
+    # Below the 10 m step, it shows.
+    properties = features_of([plane("a", 0, 24.0, alt_baro=-50)])[0]["properties"]
+    assert properties["details"][0] == {"label": "Altitude", "value": "-20 m"}
+
+
+def test_altitudes_can_be_in_feet() -> None:
+    properties = features_of(parse_aircraft(local_aircraft())[:1], unit="ft")[0]["properties"]
+    assert properties["details"][:2] == [
+        {"label": "Altitude", "value": "12,000 ft"},
+        {"label": "Vertical rate", "value": "descending 1,024 ft/min"},
+    ]
+    assert properties["list"] == {"value": "12,000 ft"}
+    assert properties["altitude_ft"] == 12000, "the sort order doesn't depend on the unit"
+
+
+def test_an_aircraft_without_callsign_or_registration_is_named_by_its_address() -> None:
+    properties = features_of([plane("4ca123", 0, 24.0, category="B6")])[0]["properties"]
+    assert properties["name"] == "4CA123"
+    assert properties["kind"] == "air.drone"
+    assert properties["footer"] == "ICAO 4CA123 · B6"
+    assert features_of([plane("4ca124", 0, 24.0)])[0]["properties"]["kind"] == "air.other"
+
+
+def test_an_address_that_isnt_icaos_isnt_called_one() -> None:
+    properties = features_of([plane("~2b0c4f", 0, 24.0)])[0]["properties"]
+    assert properties["name"] == "~2B0C4F"
+    assert properties["footer"] == "~2B0C4F"
+
+
+def test_emergencies_and_military_aircraft_get_a_notice() -> None:
+    assert notices(plane("1", 0, 24.0, squawk="7700", dbFlags=1), ENGLISH) == ["Emergency (7700)", "Military aircraft"]
+    assert notices(plane("2", 0, 24.0, squawk="7600", dbFlags=2), ENGLISH) == ["Radio failure (7600)"]
+    assert notices(plane("3", 0, 24.0, squawk="1200"), ENGLISH) == []
+
+
+def test_colours_follow_the_altitude_on_tar1090s_scale() -> None:
+    assert altitude_color(0, False) == "#f05a0f", "orange at the ground"
+    assert altitude_color(-500, False) == "#f05a0f", "below the scale, its lowest colour"
+    assert altitude_color(12000, False) == "#0cc35a", "green around 12 000 ft"
+    assert altitude_color(40000, False) == "#ce0dce", "magenta at 40 000 ft"
+    assert altitude_color(60000, False) == "#f11e1e", "above the scale, its highest colour"
+    assert altitude_color(12000, True) == GROUND_COLOR
+    assert altitude_color(None, False) == UNKNOWN_COLOR
+
+    aircraft = [plane("a", 0, 24.0, alt_baro=12000), plane("b", 0, 24.1, alt_baro="ground"), plane("c", 0, 24.2)]
+    trails = Trails()
+    trails.update([plane("a", -15, 23.99, alt_baro=12000), aircraft[0]], now=0, minutes=5)
+    features = build_features(aircraft, RECEIVER_POSITION, trails, ENGLISH, "m", True)
+    colors = {feature["id"]: feature["properties"].get("color") for feature in features}
+    assert colors == {"aircraft:a": "#0cc35a", "aircraft:a/trail": None, "aircraft:b": GROUND_COLOR, "aircraft:c": UNKNOWN_COLOR}, (
+        "a trail takes its aircraft's colour through `point`"
+    )
+
+
+def test_the_legend_is_in_the_receivers_unit_with_a_kilometre_and_up_in_kilometres() -> None:
+    metres = legend("m", FINNISH, False)
+    assert metres[0] == {"color": GROUND_COLOR, "label": "Maassa"}
+    assert [entry["label"] for entry in metres[1:]] == ["300 m", "1 km", "2 km", "3 km", "6 km", "9 km", "12 km"]
+    assert metres[1]["color"] == altitude_color(300 / 0.3048, False)
+    assert metres[-1]["color"] == altitude_color(12000 / 0.3048, False)
+    feet = legend("ft", ENGLISH, False)
+    assert feet[0]["label"] == "On the ground"
+    assert [entry["label"] for entry in feet[1:]] == [
+        "1,000 ft",
+        "3,000 ft",
+        "6,000 ft",
+        "10,000 ft",
+        "20,000 ft",
+        "30,000 ft",
+        "40,000 ft",
+    ]
+    assert feet[-1]["color"] == altitude_color(40000, False)
+    unknown = legend("m", FINNISH, True)
+    assert unknown[:-1] == metres
+    assert unknown[-1] == {"color": UNKNOWN_COLOR, "label": "Korkeus tuntematon"}, "only while some aircraft has no altitude"
+
+
+def test_trails_follow_an_aircraft_and_end_with_its_minutes() -> None:
+    trails = Trails()
+    trails.update([plane("a", 1000, 24.00)], now=1000, minutes=5)
+    assert trails.line("a") is None, "one position isn't a line"
+
+    trails.update([plane("a", 1015, 24.01)], now=1015, minutes=5)
+    trails.update([plane("a", 1015, 24.01)], now=1030, minutes=5)
+    assert trails.line("a") == [[24.0, 61.5], [24.01, 61.5]], "a position isn't added twice"
+
+    # Straight on: the middle point adds nothing to the line.
+    trails.update([plane("a", 1030, 24.02)], now=1030, minutes=5)
+    assert trails.line("a") == [[24.0, 61.5], [24.02, 61.5]]
+
+    features = build_features([plane("a", 1030, 24.02)], RECEIVER_POSITION, trails, ENGLISH, "m", False)
+    assert features[1] == {
+        "type": "Feature",
+        "id": "aircraft:a/trail",
+        "geometry": {"type": "LineString", "coordinates": [[24.0, 61.5], [24.02, 61.5]]},
+        "properties": {"kind": "air.other", "point": "aircraft:a"},
+    }
+
+    trails.update([], now=1320, minutes=5)
+    assert trails.line("a") is None, "older positions drop off"
+    trails.update([], now=1400, minutes=5)
+    assert "a" not in trails.points, "an aircraft gone for the trail's minutes is forgotten"
+
+
+def test_receiver_health_from_its_statistics() -> None:
+    assert receiver_health(stats()) == {
+        "aircraft_with_position": 3,
+        "messages_per_second": 25.1,
+        "positions_per_minute": 48,
+        "max_range": 187.7,
+        "signal": -21.4,
+        "noise": -38.2,
+    }
+
+
+def test_a_networked_receiver_has_no_signal_or_noise() -> None:
+    networked = {**stats(), "last1min": {key: value for key, value in stats()["last1min"].items() if key != "local"}}
+    health = receiver_health(networked)
+    assert health["signal"] is None
+    assert health["noise"] is None
+    assert health["messages_per_second"] == 25.1
+
+
+def test_a_minute_without_messages_has_no_signal() -> None:
+    minute = {**stats()["last1min"], "local": {"noise": -40.1}, "messages_valid": 0, "position_count_total": 0}
+    health = receiver_health({**stats(), "last1min": minute})
+    assert health["signal"] is None
+    assert health["noise"] == -40.1
+    assert health["messages_per_second"] == 0
+
+
+def test_every_language_has_the_same_texts_as_english() -> None:
+    folder = COMPONENT_DIR / "texts"
+    english = json.loads((folder / "en.json").read_text(encoding="utf-8"))
+    for path in folder.glob("*.json"):
+        texts = json.loads(path.read_text(encoding="utf-8"))
+        assert texts.keys() == english.keys(), path.name
+        for key, text in texts.items():
+            assert set(PLACEHOLDER.findall(text)) == set(PLACEHOLDER.findall(english[key])), f"{path.name}: {key}"
+
+
+def keys(value: Any, prefix: str = "") -> set[str]:
+    """Every key path in nested dictionaries, such as config.step.user.data.url."""
+    if not isinstance(value, dict):
+        return {prefix}
+    return set().union(*(keys(child, f"{prefix}.{key}" if prefix else key) for key, child in value.items()))
+
+
+def test_every_ui_language_has_the_same_keys_as_english() -> None:
+    folder = COMPONENT_DIR / "translations"
+    english = keys(json.loads((folder / "en.json").read_text(encoding="utf-8")))
+    for path in folder.glob("*.json"):
+        assert keys(json.loads(path.read_text(encoding="utf-8"))) == english, path.name
+
+
+def test_the_feed_languages_agree_everywhere() -> None:
+    """LANGUAGES, the language selector and the texts/ files list the same languages."""
+    english = keys(json.loads((COMPONENT_DIR / "translations" / "en.json").read_text(encoding="utf-8")))
+    selector = {key.removeprefix("selector.language.options.") for key in english if key.startswith("selector.language.")}
+    files = {path.stem for path in (COMPONENT_DIR / "texts").glob("*.json")}
+    assert selector == set(LANGUAGES) == files
+
+
+def test_a_language_may_write_numbers_without_a_thousands_separator() -> None:
+    texts = Texts({"thousands_separator": "", "decimal_separator": ","})
+    assert texts.number(33000) == "33000"
+    assert texts.number(2.5, 1) == "2,5"
+
+
+def test_an_address_keeps_its_path_and_loses_the_case_of_its_host() -> None:
+    assert normalize_url(" HTTP://Receiver.Example:8080/Tar1090/data/ ") == "http://receiver.example:8080/Tar1090"
+    assert normalize_url("http://receiver.example:8080") == "http://receiver.example:8080"
+    assert normalize_url("http://Adsb:S3cret@Receiver.Example/tar1090") == "http://Adsb:S3cret@receiver.example/tar1090", (
+        "a login keeps its case"
+    )
+    assert normalize_url("http://[FE80::1]:8080/") == "http://[fe80::1]:8080"
+    assert normalize_url("http://receiver.example/tar1090/?icao=4ca123#map") == "http://receiver.example/tar1090", (
+        "an address copied with an aircraft selected"
+    )
+    assert without_login("http://adsb:S3cret@receiver.example/tar1090") == "http://receiver.example/tar1090"
+
+
+def test_an_aircraft_list_that_isnt_a_list_is_refused() -> None:
+    with pytest.raises(ValueError):
+        parse_aircraft({"now": 0, "aircraft": {"hex": "46a1b2"}})
+    with pytest.raises(ValueError):
+        parse_aircraft({"now": 0, "ac": "nothing"}, remote=True)

@@ -1,0 +1,135 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ADS-B Live",
+        "description": "Adds your own ADS-B receiver, readsb or tar1090 on your network, with sensors for its health such as messages per second and range. To see the aircraft on a map, add an aircraft feed separately from the integration page.",
+        "data": {
+          "name": "Name",
+          "url": "Address",
+          "language": "Language",
+          "altitude_unit": "Altitude unit"
+        },
+        "data_description": {
+          "name": "The receiver's name. The sensors are named after the receiver.",
+          "url": "The address of tar1090, or of readsb's own web server.",
+          "language": "Language in which the feed's information, such as an aircraft's details, is shown on the map.",
+          "altitude_unit": "Altitudes in metres and vertical rates in m/s, or feet and ft/min."
+        }
+      },
+      "reconfigure": {
+        "title": "ADS-B Live",
+        "data": {
+          "url": "Address",
+          "language": "Language",
+          "altitude_unit": "Altitude unit"
+        },
+        "data_description": {
+          "url": "The address of tar1090, or of readsb's own web server.",
+          "language": "Language in which the feed's information, such as an aircraft's details, is shown on the map.",
+          "altitude_unit": "Altitudes in metres and vertical rates in m/s, or feet and ft/min."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "The receiver couldn't be reached at the given address. Check that the path data/receiver.json can be opened under it.",
+      "name_required": "The name can't be empty."
+    },
+    "abort": {
+      "already_configured": "This receiver is already set up.",
+      "reconfigure_successful": "Settings saved.",
+      "already_in_progress": "This receiver is already being set up."
+    }
+  },
+  "config_subentries": {
+    "feed": {
+      "entry_type": "Aircraft feed",
+      "initiate_flow": {
+        "user": "Add aircraft feed",
+        "reconfigure": "Change aircraft feed"
+      },
+      "step": {
+        "user": {
+          "title": "Aircraft feed",
+          "description": "Choose the area whose aircraft are added to the feed's sensor. An aircraft is in the feed while its position is less than a minute old.",
+          "data": {
+            "name": "Name",
+            "area": "Area",
+            "adsb_fi": "Add aircraft from adsb.fi",
+            "refresh_seconds": "Update interval",
+            "trail_minutes": "Trail length",
+            "color_by_altitude": "Colour by altitude"
+          },
+          "data_description": {
+            "name": "The feed's name. The sensor is named after the feed.",
+            "adsb_fi": "Aircraft your receiver doesn't hear, from adsb.fi's community network. The data fetched is for personal, non-commercial use only. With it, the area's radius can be at most 461 km.",
+            "trail_minutes": "Each aircraft's trail on the map shows its route over the set number of minutes. 0 leaves trails out.",
+            "color_by_altitude": "Each aircraft and its trail in the colour of its altitude, on the scale tar1090 uses, with a legend on the map."
+          }
+        },
+        "reconfigure": {
+          "title": "Aircraft feed",
+          "description": "Choose the area whose aircraft are added to the feed's sensor. An aircraft is in the feed while its position is less than a minute old.",
+          "data": {
+            "name": "Name",
+            "area": "Area",
+            "adsb_fi": "Add aircraft from adsb.fi",
+            "refresh_seconds": "Update interval",
+            "trail_minutes": "Trail length",
+            "color_by_altitude": "Colour by altitude"
+          },
+          "data_description": {
+            "name": "The feed's name. The sensor is named after the feed.",
+            "adsb_fi": "Aircraft your receiver doesn't hear, from adsb.fi's community network. The data fetched is for personal, non-commercial use only. With it, the area's radius can be at most 461 km.",
+            "trail_minutes": "Each aircraft's trail on the map shows its route over the set number of minutes. 0 leaves trails out.",
+            "color_by_altitude": "Each aircraft and its trail in the colour of its altitude, on the scale tar1090 uses, with a legend on the map."
+          }
+        }
+      },
+      "error": {
+        "name_required": "The name can't be empty.",
+        "area_radius": "Drag the circle's edge on the map to set a radius.",
+        "adsb_fi_radius": "With adsb.fi, the area's radius can be at most 461 km. Make the circle smaller."
+      },
+      "abort": {
+        "reconfigure_successful": "Feed saved."
+      }
+    }
+  },
+  "selector": {
+    "language": {
+      "options": {
+        "fi": "Suomi",
+        "en": "English"
+      }
+    },
+    "altitude_unit": {
+      "options": {
+        "m": "Metres",
+        "ft": "Feet"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "aircraft_with_position": {
+        "name": "Aircraft with a position"
+      },
+      "messages_per_second": {
+        "name": "Messages per second"
+      },
+      "positions_per_minute": {
+        "name": "Positions per minute"
+      },
+      "max_range": {
+        "name": "Longest range"
+      },
+      "signal": {
+        "name": "Signal"
+      },
+      "noise": {
+        "name": "Noise"
+      }
+    }
+  }
+}

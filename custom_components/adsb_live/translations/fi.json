@@ -1,0 +1,135 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ADS-B Live",
+        "description": "Lisää oman ADS-B-vastaanottimesi, eli verkossasi olevan readsb:n tai tar1090:n, ja sen kuntoa seuraavat anturit, kuten viestit sekunnissa ja kantaman. Nähdäksesi ilma-alukset kartalle, lisää ilma-alussyöte erikseen integraation sivulta.",
+        "data": {
+          "name": "Nimi",
+          "url": "Osoite",
+          "language": "Kieli",
+          "altitude_unit": "Korkeuden yksikkö"
+        },
+        "data_description": {
+          "name": "Vastaanottimen nimi. Anturit nimetään vastaanottimen mukaan.",
+          "url": "tar1090:n tai readsb:n oman verkkopalvelimen osoite.",
+          "language": "Kieli, jolla syötteen tiedot, kuten ilma-aluksen yksityiskohdat, näytetään kartalla.",
+          "altitude_unit": "Korkeudet metreinä ja pystynopeudet m/s, tai jalkoina ja ft/min."
+        }
+      },
+      "reconfigure": {
+        "title": "ADS-B Live",
+        "data": {
+          "url": "Osoite",
+          "language": "Kieli",
+          "altitude_unit": "Korkeuden yksikkö"
+        },
+        "data_description": {
+          "url": "tar1090:n tai readsb:n oman verkkopalvelimen osoite.",
+          "language": "Kieli, jolla syötteen tiedot, kuten ilma-aluksen yksityiskohdat, näytetään kartalla.",
+          "altitude_unit": "Korkeudet metreinä ja pystynopeudet m/s, tai jalkoina ja ft/min."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Vastaanotinta ei tavoitettu annetusta osoitteesta. Tarkista, että osoitteen takaa on avattavissa polku data/receiver.json.",
+      "name_required": "Nimi ei voi olla tyhjä."
+    },
+    "abort": {
+      "already_configured": "Tämä vastaanotin on jo asetettu.",
+      "reconfigure_successful": "Asetukset tallennettu.",
+      "already_in_progress": "Tämän vastaanottimen asetus on jo kesken."
+    }
+  },
+  "config_subentries": {
+    "feed": {
+      "entry_type": "Ilma-alussyöte",
+      "initiate_flow": {
+        "user": "Lisää ilma-alussyöte",
+        "reconfigure": "Muuta ilma-alussyötettä"
+      },
+      "step": {
+        "user": {
+          "title": "Ilma-alussyöte",
+          "description": "Valitse alue, jonka sisällä olevat ilma-alukset lisätään syötteen anturiin. Ilma-alus on syötteessä, kun sen sijainti on alle minuutin vanha.",
+          "data": {
+            "name": "Nimi",
+            "area": "Alue",
+            "adsb_fi": "Lisää ilma-alukset adsb.fi:stä",
+            "refresh_seconds": "Päivitysväli",
+            "trail_minutes": "Vanan pituus",
+            "color_by_altitude": "Väritä korkeuden mukaan"
+          },
+          "data_description": {
+            "name": "Syötteen nimi. Anturi nimetään syötteen mukaan.",
+            "adsb_fi": "Ilma-alukset, joita vastaanottimesi ei kuule, adsb.fi:n yhteisöverkosta. Haettavat tiedot ovat vain henkilökohtaiseen, ei-kaupalliseen käyttöön. Sen kanssa alueen säde voi olla enintään 461 km.",
+            "trail_minutes": "Kunkin ilma-aluksen vana kartalla näyttää lentoreitin asetettujen minuuttien aikana. 0 jättää vanat pois.",
+            "color_by_altitude": "Jokainen ilma-alus vanoineen korkeuden mukaisella värillä, samalla asteikolla kuin tar1090:ssä, ja selite kartalla."
+          }
+        },
+        "reconfigure": {
+          "title": "Ilma-alussyöte",
+          "description": "Valitse alue, jonka sisällä olevat ilma-alukset lisätään syötteen anturiin. Ilma-alus on syötteessä, kun sen sijainti on alle minuutin vanha.",
+          "data": {
+            "name": "Nimi",
+            "area": "Alue",
+            "adsb_fi": "Lisää ilma-alukset adsb.fi:stä",
+            "refresh_seconds": "Päivitysväli",
+            "trail_minutes": "Vanan pituus",
+            "color_by_altitude": "Väritä korkeuden mukaan"
+          },
+          "data_description": {
+            "name": "Syötteen nimi. Anturi nimetään syötteen mukaan.",
+            "adsb_fi": "Ilma-alukset, joita vastaanottimesi ei kuule, adsb.fi:n yhteisöverkosta. Haettavat tiedot ovat vain henkilökohtaiseen, ei-kaupalliseen käyttöön. Sen kanssa alueen säde voi olla enintään 461 km.",
+            "trail_minutes": "Kunkin ilma-aluksen vana kartalla näyttää lentoreitin asetettujen minuuttien aikana. 0 jättää vanat pois.",
+            "color_by_altitude": "Jokainen ilma-alus vanoineen korkeuden mukaisella värillä, samalla asteikolla kuin tar1090:ssä, ja selite kartalla."
+          }
+        }
+      },
+      "error": {
+        "name_required": "Nimi ei voi olla tyhjä.",
+        "area_radius": "Aseta säde vetämällä ympyrän reunaa kartalla.",
+        "adsb_fi_radius": "adsb.fi:n kanssa alueen säde voi olla enintään 461 km. Pienennä ympyrää."
+      },
+      "abort": {
+        "reconfigure_successful": "Syöte tallennettu."
+      }
+    }
+  },
+  "selector": {
+    "language": {
+      "options": {
+        "fi": "Suomi",
+        "en": "English"
+      }
+    },
+    "altitude_unit": {
+      "options": {
+        "m": "Metrit",
+        "ft": "Jalat"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "aircraft_with_position": {
+        "name": "Sijainnillisia ilma-aluksia"
+      },
+      "messages_per_second": {
+        "name": "Viestejä sekunnissa"
+      },
+      "positions_per_minute": {
+        "name": "Sijainteja minuutissa"
+      },
+      "max_range": {
+        "name": "Pisin kantama"
+      },
+      "signal": {
+        "name": "Signaali"
+      },
+      "noise": {
+        "name": "Kohina"
+      }
+    }
+  }
+}

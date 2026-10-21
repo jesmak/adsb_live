@@ -1,0 +1,318 @@
+"""Aircraft: readsb's JSON, from the local receiver or adsb.fi, as map feed features.
+
+Field meanings follow readsb's README-json.md. Altitudes are in feet, rates in
+feet per minute and speeds in knots, as ADS-B sends them.
+"""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from typing import Any
+
+from homeassistant.util import dt as dt_util
+
+from .colors import altitude_color
+from .const import CONF_ADSB_FI, CONF_AREA, CONF_COLOR_BY_ALTITUDE, CONF_TRAIL_MINUTES, DEFAULT_COLOR_BY_ALTITUDE
+from .geo import KM_PER_NM, METRES_PER_FOOT, Area, haversine_km, round_position, simplify_path
+from .texts import Texts
+
+# readsb keeps an aircraft for a while after its last position; older positions aren't live.
+MAX_POSITION_AGE_SECONDS = 60
+
+# readsb's vertical rates come in steps of 64 ft/min, so anything smaller is level flight.
+LEVEL_RATE_FT_MIN = 100
+
+# Trails are simplified to what a map shows, as the map feed format suggests.
+TRAIL_TOLERANCE_KM = 0.02
+
+# ADS-B emitter categories (DO-260B) as feed kinds. Category set C isn't aircraft and is left out: surface
+# vehicles and obstacles, fixed or tethered such as a balloon, and C0 without a subcategory.
+KINDS = {
+    "A1": "air.light",
+    "A2": "air.small",
+    "A3": "air.large",
+    # High vortex large, such as a Boeing 757.
+    "A4": "air.large",
+    "A5": "air.heavy",
+    "A6": "air.high_performance",
+    "A7": "air.rotorcraft",
+    "B1": "air.glider",
+    "B2": "air.balloon",
+    "B4": "air.light",
+    "B6": "air.drone",
+}
+OTHER_KIND = "air.other"
+
+EMERGENCY_SQUAWKS = ("7500", "7600", "7700")
+# dbFlags bit for a military aircraft in the aircraft database.
+DB_FLAG_MILITARY = 1
+
+
+@dataclass(frozen=True)
+class FeedConfig:
+    area: Area
+    adsb_fi: bool
+    trail_minutes: int
+    color_by_altitude: bool
+
+    @classmethod
+    def from_data(cls, data: Mapping[str, Any]) -> FeedConfig:
+        """From config subentry data."""
+        return cls(
+            area=Area.from_selector(data[CONF_AREA]),
+            adsb_fi=data[CONF_ADSB_FI],
+            trail_minutes=data[CONF_TRAIL_MINUTES],
+            # A feed saved before the setting existed in the integration uses the default.
+            color_by_altitude=data.get(CONF_COLOR_BY_ALTITUDE, DEFAULT_COLOR_BY_ALTITUDE),
+        )
+
+
+@dataclass(frozen=True)
+class Aircraft:
+    hex: str
+    latitude: float
+    longitude: float
+    # When the position was received, in seconds since the epoch.
+    position_time: float
+    # adsb, mlat, tisb, other or adsb_fi
+    source: str
+    data: Mapping[str, Any]
+
+    @property
+    def feature_id(self) -> str:
+        return f"aircraft:{self.hex}"
+
+    @property
+    def kind(self) -> str:
+        return KINDS.get(str(self.data.get("category") or ""), OTHER_KIND)
+
+    @property
+    def callsign(self) -> str:
+        return str(self.data.get("flight") or "").strip()
+
+    @property
+    def on_ground(self) -> bool:
+        return self.data.get("alt_baro") == "ground"
+
+    @property
+    def altitude_ft(self) -> int | None:
+        """Barometric altitude, or the geometric one when there is none; 0 on the ground."""
+        if self.on_ground:
+            return 0
+        for key in ("alt_baro", "alt_geom"):
+            if (value := number(self.data.get(key))) is not None:
+                return round(value)
+        return None
+
+
+def number(value: Any) -> float | None:
+    """A finite number, or None."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return None
+    return float(value)
+
+
+def local_source(message_type: Any) -> str:
+    """Where readsb got a position from, by its `type`."""
+    text = str(message_type or "")
+    if text.startswith(("adsb", "adsr")):
+        return "adsb"
+    if text == "mlat":
+        return "mlat"
+    if text.startswith("tisb"):
+        return "tisb"
+    return "other"
+
+
+def parse_aircraft(data: Mapping[str, Any], remote: bool = False) -> list[Aircraft]:
+    """Aircraft with a live position from readsb's aircraft.json, or from adsb.fi when `remote`.
+
+    aircraft.json gives `now` in seconds and its list as `aircraft`; adsb.fi gives
+    `now` in milliseconds and its list as `ac`.
+    """
+    now = number(data.get("now"))
+    if now is None:
+        raise ValueError("No time in the aircraft list")
+    if remote:
+        now /= 1000
+    result: list[Aircraft] = []
+    items = data.get("ac" if remote else "aircraft") or []
+    if not isinstance(items, list):
+        raise ValueError("The aircraft list isn't a list")
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        hex_code = str(item.get("hex") or "").lower()
+        latitude, longitude, age = number(item.get("lat")), number(item.get("lon")), number(item.get("seen_pos"))
+        if not hex_code or latitude is None or longitude is None or age is None or age > MAX_POSITION_AGE_SECONDS:
+            continue
+        if str(item.get("category") or "").startswith("C"):
+            continue
+        source = "adsb_fi" if remote else local_source(item.get("type"))
+        result.append(Aircraft(hex_code, latitude, longitude, now - age, source, item))
+    return result
+
+
+def merge(local: Iterable[Aircraft], remote: Iterable[Aircraft]) -> list[Aircraft]:
+    """The local receiver's aircraft, then those only adsb.fi has."""
+    result = list(local)
+    seen = {aircraft.hex for aircraft in result}
+    result.extend(aircraft for aircraft in remote if aircraft.hex not in seen)
+    return result
+
+
+def in_area(aircraft: Iterable[Aircraft], area: Area) -> list[Aircraft]:
+    return [plane for plane in aircraft if area.distance_km(plane.latitude, plane.longitude) <= area.radius_km]
+
+
+@dataclass
+class Trails:
+    """Where each aircraft has been in the last minutes, kept in memory between updates."""
+
+    points: dict[str, list[tuple[float, float, float]]] = field(default_factory=dict)
+
+    def update(self, aircraft: Iterable[Aircraft], now: float, minutes: int) -> None:
+        for plane in aircraft:
+            trail = self.points.setdefault(plane.hex, [])
+            if not trail or plane.position_time > trail[-1][0]:
+                trail.append((plane.position_time, plane.longitude, plane.latitude))
+        cutoff = now - minutes * 60
+        for hex_code in list(self.points):
+            kept = [point for point in self.points[hex_code] if point[0] >= cutoff]
+            if kept:
+                self.points[hex_code] = kept
+            else:
+                del self.points[hex_code]
+
+    def line(self, hex_code: str) -> list[list[float]] | None:
+        """The trail as rounded [longitude, latitude] positions, or None when it has fewer than two."""
+        path = [round_position(lon, lat) for _, lon, lat in self.points.get(hex_code, [])]
+        path = [position for index, position in enumerate(path) if index == 0 or position != path[index - 1]]
+        return simplify_path(path, TRAIL_TOLERANCE_KM) if len(path) >= 2 else None
+
+
+# ---------------- feed features ----------------
+
+
+def altitude_text(plane: Aircraft, texts: Texts, unit: str) -> str | None:
+    """ "10 060 m" or "33 000 ft", or "on the ground"."""
+    if plane.on_ground:
+        return texts("on_ground")
+    feet = plane.altitude_ft
+    if feet is None:
+        return None
+    if unit == "ft":
+        return f"{texts.number(feet)} ft"
+    return f"{texts.number(feet * METRES_PER_FOOT, -1)} m"
+
+
+def vertical_rate_text(plane: Aircraft, texts: Texts, unit: str) -> str | None:
+    if plane.on_ground:
+        return None
+    rate = number(plane.data.get("baro_rate"))
+    if rate is None:
+        rate = number(plane.data.get("geom_rate"))
+    if rate is None:
+        return None
+    if abs(rate) < LEVEL_RATE_FT_MIN:
+        return texts("level")
+    if unit == "ft":
+        text = f"{texts.number(abs(rate))} ft/min"
+    else:
+        text = f"{texts.number(abs(rate) * METRES_PER_FOOT / 60, 1)} m/s"
+    return texts("climbing" if rate > 0 else "descending", rate=text)
+
+
+def detail_rows(plane: Aircraft, distance_km: float, texts: Texts, unit: str) -> list[dict[str, Any]]:
+    data = plane.data
+    candidates = [
+        ("altitude", altitude_text(plane, texts, unit)),
+        ("vertical_rate", vertical_rate_text(plane, texts, unit)),
+        ("squawk", data.get("squawk")),
+        ("registration", data.get("r")),
+        ("type", data.get("t")),
+        ("distance", f"{texts.number(distance_km, 1)} km"),
+        ("source", texts(f"source_{plane.source}")),
+    ]
+    return [{"label": texts(label), "value": str(value)} for label, value in candidates if value not in (None, "")]
+
+
+def notices(plane: Aircraft, texts: Texts) -> list[str]:
+    result = []
+    if (squawk := str(plane.data.get("squawk") or "")) in EMERGENCY_SQUAWKS:
+        result.append(texts(f"squawk_{squawk}"))
+    flags = plane.data.get("dbFlags")
+    if isinstance(flags, int) and flags & DB_FLAG_MILITARY:
+        result.append(texts("military"))
+    return result
+
+
+def build_features(
+    aircraft: Iterable[Aircraft],
+    distance_from: tuple[float, float],
+    trails: Trails | None,
+    texts: Texts,
+    unit: str,
+    color_by_altitude: bool,
+) -> list[dict[str, Any]]:
+    """Point features for the aircraft, nearest first, each followed by its trail when it has one.
+
+    Distances are measured from `distance_from` (latitude, longitude), the receiver when its position is known.
+    Altitudes and vertical rates are written in `unit`, "m" or "ft". With `color_by_altitude`, each point has
+    its altitude's colour, which its trail takes too.
+    """
+    measured = sorted(
+        ((haversine_km(distance_from[0], distance_from[1], plane.latitude, plane.longitude), plane) for plane in aircraft),
+        key=lambda pair: pair[0],
+    )
+    features: list[dict[str, Any]] = []
+    for distance_km, plane in measured:
+        features.append(point_feature(plane, distance_km, texts, unit, color_by_altitude))
+        if trails is not None and (line := trails.line(plane.hex)):
+            features.append(
+                {
+                    "type": "Feature",
+                    "id": f"{plane.feature_id}/trail",
+                    "geometry": {"type": "LineString", "coordinates": line},
+                    "properties": {"kind": plane.kind, "point": plane.feature_id},
+                }
+            )
+    return features
+
+
+def point_feature(plane: Aircraft, distance_km: float, texts: Texts, unit: str, color_by_altitude: bool) -> dict[str, Any]:
+    data = plane.data
+    name = plane.callsign or str(data.get("r") or "") or plane.hex.upper()
+    speed = number(data.get("gs"))
+    heading = number(data.get("track"))
+    if heading is None:
+        heading = number(data.get("true_heading"))
+    altitude = altitude_text(plane, texts, unit)
+    category = str(data.get("category") or "")
+    # Addresses starting with ~ aren't ICAO addresses, such as a TIS-B track's or an anonymous one.
+    address = plane.hex.upper() if plane.hex.startswith("~") else f"ICAO {plane.hex.upper()}"
+    properties: dict[str, Any] = {
+        "name": name,
+        "kind": plane.kind,
+        "updated": dt_util.utc_from_timestamp(plane.position_time).isoformat(timespec="seconds"),
+        "heading": round(heading) % 360 if heading is not None else None,
+        "stationary": True if plane.on_ground else None,
+        "speed_kmh": round(speed * KM_PER_NM) if speed is not None else None,
+        "subtitle": " · ".join(str(part) for part in (data.get("desc"), data.get("ownOp")) if part),
+        "details": detail_rows(plane, distance_km, texts, unit),
+        "notices": notices(plane, texts),
+        "color": altitude_color(plane.altitude_ft, plane.on_ground) if color_by_altitude else None,
+        "footer": " · ".join(part for part in (address, category) if part),
+        "list": {"value": altitude} if altitude else None,
+        # The feed's own properties, for the list's sort orders.
+        "distance_km": round(distance_km, 1),
+        "altitude_ft": plane.altitude_ft,
+    }
+    return {
+        "type": "Feature",
+        "id": plane.feature_id,
+        "geometry": {"type": "Point", "coordinates": round_position(plane.longitude, plane.latitude)},
+        "properties": {key: value for key, value in properties.items() if value not in (None, "", [])},
+    }
