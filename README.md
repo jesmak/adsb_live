@@ -5,6 +5,11 @@ community network knows, into map feeds, with sensors for the receiver's health.
 
 [![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![HACS][hacs-shield]][hacs] [![License][license-shield]](LICENSE)
 
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-light.png#gh-light-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, and the receiver's health and nearest aircraft as tiles">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-dark.png#gh-dark-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, and the receiver's health and nearest aircraft as tiles">
+
+The aircraft in the picture are made up.
+
 ## What is it?
 
 A custom component for anyone who runs an ADS-B receiver with [readsb](https://github.com/wiedehopf/readsb), usually

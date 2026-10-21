@@ -1,0 +1,993 @@
+{
+  "resources": [
+    "../../hass-cards/map-feed-card/dist/map-feed-card.js"
+  ],
+  "clock": "2026-06-12T14:20:00+03:00",
+  "states": {
+    "sensor.aircraft_near_tampere": {
+      "state": "10",
+      "attributes": {
+        "friendly_name": "Aircraft near Tampere",
+        "icon": "mdi:airplane",
+        "attribution": "adsb.fi",
+        "attribution_url": "https://adsb.fi/",
+        "map_feed_version": 1,
+        "feed_type": "air",
+        "area": {
+          "center": [
+            61.4978,
+            23.761
+          ],
+          "radius_km": 100
+        },
+        "updated": "2026-06-12T14:20:00+03:00",
+        "list": {
+          "sort": [
+            {
+              "key": "distance",
+              "label": "Distance",
+              "property": "distance_km"
+            },
+            {
+              "key": "altitude",
+              "label": "Altitude",
+              "property": "altitude_ft",
+              "order": "desc"
+            }
+          ],
+          "default": "distance",
+          "count": "aircraft",
+          "count_one": "aircraft"
+        },
+        "legend": [
+          {
+            "color": "#4d4d4d",
+            "label": "On the ground"
+          },
+          {
+            "color": "#f07719",
+            "label": "300 m"
+          },
+          {
+            "color": "#f0a61a",
+            "label": "1 km"
+          },
+          {
+            "color": "#d0cc0d",
+            "label": "2 km"
+          },
+          {
+            "color": "#31c50d",
+            "label": "3 km"
+          },
+          {
+            "color": "#0db5cf",
+            "label": "6 km"
+          },
+          {
+            "color": "#3b34f2",
+            "label": "9 km"
+          },
+          {
+            "color": "#c90ed5",
+            "label": "12 km"
+          }
+        ],
+        "geojson": {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "id": "aircraft:46a1c4",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  23.7,
+                  61.43
+                ]
+              },
+              "properties": {
+                "name": "EXA481",
+                "kind": "air.large",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 228,
+                "speed_kmh": 296,
+                "subtitle": "EMBRAER ERJ-190-100 · Example Air",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "730 m"
+                  },
+                  {
+                    "label": "Vertical rate",
+                    "value": "descending 3.9 m/s"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "6211"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "OH-ZZD"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "E190"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "8.2 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "ADS-B"
+                  }
+                ],
+                "color": "#f1981f",
+                "footer": "ICAO 46A1C4 · A3",
+                "list": {
+                  "value": "730 m"
+                },
+                "distance_km": 8.2,
+                "altitude_ft": 2400
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:46a1c4/trail",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    24.04509,
+                    61.5786
+                  ],
+                  [
+                    23.7,
+                    61.43
+                  ]
+                ]
+              },
+              "properties": {
+                "kind": "air.large",
+                "point": "aircraft:46a1c4"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:462000",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  23.6038,
+                  61.4155
+                ]
+              },
+              "properties": {
+                "name": "EXA456",
+                "kind": "air.large",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 180,
+                "stationary": true,
+                "speed_kmh": 22,
+                "subtitle": "AIRBUS A-321 · Example Air",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "on the ground"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "2000"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "OH-ZZC"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "A321"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "12.4 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "ADS-B"
+                  }
+                ],
+                "color": "#4d4d4d",
+                "footer": "ICAO 462000 · A3",
+                "list": {
+                  "value": "on the ground"
+                },
+                "distance_km": 12.4,
+                "altitude_ft": 0
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:461f00",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  23.3,
+                  61.6
+                ]
+              },
+              "properties": {
+                "name": "OH-ZZB",
+                "kind": "air.light",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 270,
+                "speed_kmh": 176,
+                "subtitle": "CESSNA 172 Skyhawk",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "760 m"
+                  },
+                  {
+                    "label": "Vertical rate",
+                    "value": "level"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "6211"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "OH-ZZB"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "C172"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "26.9 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "MLAT"
+                  }
+                ],
+                "color": "#f19a1f",
+                "footer": "ICAO 461F00 · A1",
+                "list": {
+                  "value": "760 m"
+                },
+                "distance_km": 26.9,
+                "altitude_ft": 2500
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:461f00/trail",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    23.57723,
+                    61.6
+                  ],
+                  [
+                    23.3,
+                    61.6
+                  ]
+                ]
+              },
+              "properties": {
+                "kind": "air.light",
+                "point": "aircraft:461f00"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:46a1d7",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  23.31,
+                  61.71
+                ]
+              },
+              "properties": {
+                "name": "EXA77",
+                "kind": "air.small",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 31,
+                "speed_kmh": 454,
+                "subtitle": "ATR-72-500 · Example Air",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "2,990 m"
+                  },
+                  {
+                    "label": "Vertical rate",
+                    "value": "climbing 5.2 m/s"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "6211"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "OH-ZZE"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "AT75"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "33.5 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "ADS-B"
+                  }
+                ],
+                "color": "#34c50d",
+                "footer": "ICAO 46A1D7 · A2",
+                "list": {
+                  "value": "2,990 m"
+                },
+                "distance_km": 33.5,
+                "altitude_ft": 9800
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:46a1d7/trail",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    22.94046,
+                    61.41852
+                  ],
+                  [
+                    23.31,
+                    61.71
+                  ]
+                ]
+              },
+              "properties": {
+                "kind": "air.small",
+                "point": "aircraft:46a1d7"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:461f10",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  24.25,
+                  61.3
+                ]
+              },
+              "properties": {
+                "name": "OHZZH",
+                "kind": "air.rotorcraft",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 138,
+                "speed_kmh": 204,
+                "subtitle": "AIRBUS HELICOPTERS EC-135/635",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "370 m"
+                  },
+                  {
+                    "label": "Vertical rate",
+                    "value": "climbing 1.0 m/s"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "6211"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "OH-ZZH"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "EC35"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "34.1 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "ADS-B"
+                  }
+                ],
+                "color": "#f07d1b",
+                "footer": "ICAO 461F10 · A7",
+                "list": {
+                  "value": "370 m"
+                },
+                "distance_km": 34.1,
+                "altitude_ft": 1200
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:461f10/trail",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    24.03727,
+                    61.41346
+                  ],
+                  [
+                    24.25,
+                    61.3
+                  ]
+                ]
+              },
+              "properties": {
+                "kind": "air.rotorcraft",
+                "point": "aircraft:461f10"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:461f20",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  23.85,
+                  61.86
+                ]
+              },
+              "properties": {
+                "name": "OH-ZZG",
+                "kind": "air.glider",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 302,
+                "speed_kmh": 89,
+                "subtitle": "Glider",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "1,310 m"
+                  },
+                  {
+                    "label": "Vertical rate",
+                    "value": "climbing 1.6 m/s"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "6211"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "OH-ZZG"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "GLID"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "40.5 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "MLAT"
+                  }
+                ],
+                "color": "#f0b815",
+                "footer": "ICAO 461F20 · B1",
+                "list": {
+                  "value": "1,310 m"
+                },
+                "distance_km": 40.5,
+                "altitude_ft": 4300
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:461f20/trail",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    23.96979,
+                    61.8247
+                  ],
+                  [
+                    23.85,
+                    61.86
+                  ]
+                ]
+              },
+              "properties": {
+                "kind": "air.glider",
+                "point": "aircraft:461f20"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:4ca8e1",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  24.58,
+                  61.24
+                ]
+              },
+              "properties": {
+                "name": "EXD905",
+                "kind": "air.large",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 323,
+                "speed_kmh": 719,
+                "subtitle": "BOEING 737-800 · Example Low Cost",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "6,710 m"
+                  },
+                  {
+                    "label": "Vertical rate",
+                    "value": "climbing 11.4 m/s"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "6211"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "EI-ZZF"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "B738"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "52.2 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "adsb.fi"
+                  }
+                ],
+                "color": "#36b1f2",
+                "footer": "ICAO 4CA8E1 · A3",
+                "list": {
+                  "value": "6,710 m"
+                },
+                "distance_km": 52.2,
+                "altitude_ft": 22000
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:4ca8e1/trail",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    25.25359,
+                    60.80991
+                  ],
+                  [
+                    24.58,
+                    61.24
+                  ]
+                ]
+              },
+              "properties": {
+                "kind": "air.large",
+                "point": "aircraft:4ca8e1"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:46a1b2",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  24.75,
+                  61.8
+                ]
+              },
+              "properties": {
+                "name": "EXA123",
+                "kind": "air.large",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 112,
+                "speed_kmh": 837,
+                "subtitle": "AIRBUS A-320 · Example Air",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "10,970 m"
+                  },
+                  {
+                    "label": "Vertical rate",
+                    "value": "level"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "6211"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "OH-ZZA"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "A320"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "62.1 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "adsb.fi"
+                  }
+                ],
+                "color": "#ad36f2",
+                "footer": "ICAO 46A1B2 · A3",
+                "list": {
+                  "value": "10,970 m"
+                },
+                "distance_km": 62.1,
+                "altitude_ft": 36000
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:46a1b2/trail",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    23.51908,
+                    62.03501
+                  ],
+                  [
+                    24.75,
+                    61.8
+                  ]
+                ]
+              },
+              "properties": {
+                "kind": "air.large",
+                "point": "aircraft:46a1b2"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:3c64a8",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  23.11,
+                  60.98
+                ]
+              },
+              "properties": {
+                "name": "EXC4417",
+                "kind": "air.large",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 196,
+                "speed_kmh": 817,
+                "subtitle": "BOEING 737 MAX 8 · Example Charter",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "9,450 m"
+                  },
+                  {
+                    "label": "Vertical rate",
+                    "value": "descending 7.5 m/s"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "6211"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "D-ZZMA"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "B38M"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "67.3 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "adsb.fi"
+                  }
+                ],
+                "color": "#4e2cf2",
+                "footer": "ICAO 3C64A8 · A3",
+                "list": {
+                  "value": "9,450 m"
+                },
+                "distance_km": 67.3,
+                "altitude_ft": 31000
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:3c64a8/trail",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    23.45778,
+                    61.56838
+                  ],
+                  [
+                    23.11,
+                    60.98
+                  ]
+                ]
+              },
+              "properties": {
+                "kind": "air.large",
+                "point": "aircraft:3c64a8"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:4b19f2",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  24.95,
+                  62.1
+                ]
+              },
+              "properties": {
+                "name": "EXB2081",
+                "kind": "air.heavy",
+                "updated": "2026-06-12T11:20:00+00:00",
+                "heading": 68,
+                "speed_kmh": 885,
+                "subtitle": "AIRBUS A-330-300 · Example Airways",
+                "details": [
+                  {
+                    "label": "Altitude",
+                    "value": "11,890 m"
+                  },
+                  {
+                    "label": "Vertical rate",
+                    "value": "level"
+                  },
+                  {
+                    "label": "Squawk",
+                    "value": "6211"
+                  },
+                  {
+                    "label": "Registration",
+                    "value": "HB-ZZK"
+                  },
+                  {
+                    "label": "Type",
+                    "value": "A333"
+                  },
+                  {
+                    "label": "Distance",
+                    "value": "91.6 km"
+                  },
+                  {
+                    "label": "Source",
+                    "value": "adsb.fi"
+                  }
+                ],
+                "color": "#c60ed9",
+                "footer": "ICAO 4B19F2 · A5",
+                "list": {
+                  "value": "11,890 m"
+                },
+                "distance_km": 91.6,
+                "altitude_ft": 39000
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "aircraft:4b19f2/trail",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    23.63542,
+                    61.85147
+                  ],
+                  [
+                    24.95,
+                    62.1
+                  ]
+                ]
+              },
+              "properties": {
+                "kind": "air.heavy",
+                "point": "aircraft:4b19f2"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "sensor.aircraft_near_tampere_nearest_aircraft": {
+      "state": "EXA481",
+      "attributes": {
+        "friendly_name": "Aircraft near Tampere Nearest aircraft",
+        "icon": "mdi:airplane-marker",
+        "hex": "46a1c4",
+        "registration": "OH-ZZD",
+        "type": "E190",
+        "distance_km": 8.2,
+        "altitude": 732,
+        "heading": 228
+      }
+    },
+    "sensor.ads_b_messages_per_second": {
+      "state": "412.6",
+      "attributes": {
+        "friendly_name": "ADS-B Messages per second",
+        "unit_of_measurement": "msg/s",
+        "state_class": "measurement",
+        "icon": "mdi:message-processing"
+      }
+    },
+    "sensor.ads_b_positions_per_minute": {
+      "state": "188",
+      "attributes": {
+        "friendly_name": "ADS-B Positions per minute",
+        "unit_of_measurement": "/min",
+        "state_class": "measurement",
+        "icon": "mdi:crosshairs-gps"
+      }
+    },
+    "sensor.ads_b_aircraft_with_a_position": {
+      "state": "7",
+      "attributes": {
+        "friendly_name": "ADS-B Aircraft with a position",
+        "state_class": "measurement",
+        "icon": "mdi:airplane"
+      }
+    },
+    "sensor.ads_b_longest_range": {
+      "state": "214.3",
+      "attributes": {
+        "friendly_name": "ADS-B Longest range",
+        "unit_of_measurement": "km",
+        "device_class": "distance",
+        "state_class": "measurement",
+        "icon": "mdi:radar"
+      }
+    },
+    "sensor.ads_b_signal": {
+      "state": "-18.2",
+      "attributes": {
+        "friendly_name": "ADS-B Signal",
+        "unit_of_measurement": "dBFS",
+        "device_class": "signal_strength",
+        "state_class": "measurement"
+      }
+    },
+    "sensor.ads_b_noise": {
+      "state": "-36.9",
+      "attributes": {
+        "friendly_name": "ADS-B Noise",
+        "unit_of_measurement": "dBFS",
+        "device_class": "signal_strength",
+        "state_class": "measurement"
+      }
+    }
+  },
+  "shots": [
+    {
+      "name": "dashboard",
+      "width": 1280,
+      "popup": "EXA481",
+      "view": {
+        "type": "sections",
+        "max_columns": 3,
+        "sections": [
+          {
+            "type": "grid",
+            "column_span": 2,
+            "cards": [
+              {
+                "type": "custom:map-feed-card",
+                "map_height": 436,
+                "list": true,
+                "entities": [
+                  {
+                    "entity": "sensor.aircraft_near_tampere",
+                    "show_area": true,
+                    "labels": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "grid",
+            "cards": [
+              {
+                "type": "tile",
+                "entity": "sensor.aircraft_near_tampere_nearest_aircraft",
+                "name": "Nearest aircraft",
+                "icon": "mdi:airplane-marker"
+              },
+              {
+                "type": "tile",
+                "entity": "sensor.ads_b_messages_per_second",
+                "name": "Messages",
+                "icon": "mdi:message-processing",
+                "grid_options": {
+                  "columns": 6
+                }
+              },
+              {
+                "type": "tile",
+                "entity": "sensor.ads_b_positions_per_minute",
+                "name": "Positions",
+                "icon": "mdi:crosshairs-gps",
+                "grid_options": {
+                  "columns": 6
+                }
+              },
+              {
+                "type": "tile",
+                "entity": "sensor.ads_b_aircraft_with_a_position",
+                "name": "With a position",
+                "icon": "mdi:airplane",
+                "grid_options": {
+                  "columns": 6
+                }
+              },
+              {
+                "type": "tile",
+                "entity": "sensor.ads_b_longest_range",
+                "name": "Longest range",
+                "icon": "mdi:radar",
+                "grid_options": {
+                  "columns": 6
+                }
+              },
+              {
+                "type": "tile",
+                "entity": "sensor.ads_b_signal",
+                "name": "Signal",
+                "icon": "mdi:signal",
+                "grid_options": {
+                  "columns": 6
+                }
+              },
+              {
+                "type": "tile",
+                "entity": "sensor.ads_b_noise",
+                "name": "Noise",
+                "icon": "mdi:waveform",
+                "grid_options": {
+                  "columns": 6
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
