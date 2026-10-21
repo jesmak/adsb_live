@@ -58,13 +58,17 @@
             "adsb_fi": "Add aircraft from adsb.fi",
             "refresh_seconds": "Update interval",
             "trail_minutes": "Trail length",
-            "color_by_altitude": "Colour by altitude"
+            "color_by_altitude": "Colour by altitude",
+            "overhead_radius_km": "Aircraft overhead, radius",
+            "overhead_altitude": "Aircraft overhead, maximum altitude"
           },
           "data_description": {
-            "name": "The feed's name. The sensor is named after the feed.",
+            "name": "The feed's name. Its sensors and event entity are named after the feed.",
             "adsb_fi": "Aircraft your receiver doesn't hear, from adsb.fi's community network. The data fetched is for personal, non-commercial use only. With it, the area's radius can be at most 461 km.",
             "trail_minutes": "Each aircraft's trail on the map shows its route over the set number of minutes. 0 leaves trails out.",
-            "color_by_altitude": "Each aircraft and its trail in the colour of its altitude, on the scale tar1090 uses, with a legend on the map."
+            "color_by_altitude": "Each aircraft and its trail in the colour of its altitude, on the scale tar1090 uses, with a legend on the map.",
+            "overhead_radius_km": "An aircraft this near the area's centre and low enough fires the overhead event. 0 means the event is off.",
+            "overhead_altitude": "The altitude an aircraft must be below to fire the overhead event. The unit is the same as the receiver's."
           }
         },
         "reconfigure": {
@@ -76,13 +80,17 @@
             "adsb_fi": "Add aircraft from adsb.fi",
             "refresh_seconds": "Update interval",
             "trail_minutes": "Trail length",
-            "color_by_altitude": "Colour by altitude"
+            "color_by_altitude": "Colour by altitude",
+            "overhead_radius_km": "Aircraft overhead, radius",
+            "overhead_altitude": "Aircraft overhead, maximum altitude"
           },
           "data_description": {
-            "name": "The feed's name. The sensor is named after the feed.",
+            "name": "The feed's name. Its sensors and event entity are named after the feed.",
             "adsb_fi": "Aircraft your receiver doesn't hear, from adsb.fi's community network. The data fetched is for personal, non-commercial use only. With it, the area's radius can be at most 461 km.",
             "trail_minutes": "Each aircraft's trail on the map shows its route over the set number of minutes. 0 leaves trails out.",
-            "color_by_altitude": "Each aircraft and its trail in the colour of its altitude, on the scale tar1090 uses, with a legend on the map."
+            "color_by_altitude": "Each aircraft and its trail in the colour of its altitude, on the scale tar1090 uses, with a legend on the map.",
+            "overhead_radius_km": "An aircraft this near the area's centre and low enough fires the overhead event. 0 means the event is off.",
+            "overhead_altitude": "The altitude an aircraft must be below to fire the overhead event. The unit is the same as the receiver's."
           }
         }
       },
@@ -129,7 +137,45 @@
       },
       "noise": {
         "name": "Noise"
+      },
+      "nearest_aircraft": {
+        "name": "Nearest aircraft"
       }
+    },
+    "event": {
+      "aircraft_events": {
+        "name": "Aircraft events",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "emergency": "Emergency squawk",
+              "military": "Military aircraft",
+              "overhead": "Overhead"
+            }
+          }
+        }
+      }
+    }
+  },
+  "services": {
+    "get_aircraft_details": {
+      "name": "Get aircraft details",
+      "description": "Returns an aircraft's route and photo as map feed detail rows. The map card calls this when an aircraft is opened.",
+      "fields": {
+        "feed": {
+          "name": "Feed",
+          "description": "The feed's ID, which the feed gives in each aircraft's detail action."
+        },
+        "hex": {
+          "name": "Address",
+          "description": "The aircraft's ICAO address, such as 4ca8e1."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_feed": {
+      "message": "No ADS-B Live feed with this ID is set up."
     }
   }
 }

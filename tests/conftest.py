@@ -180,7 +180,16 @@ def receiver_entry(
 
     The feeds have the form's defaults, apart from adsb.fi and colours, unless `feed` gives all their settings.
     """
-    data = feed or {"area": AREA, "adsb_fi": adsb_fi, "refresh_seconds": 15, "trail_minutes": 5, "color_by_altitude": color_by_altitude}
+    data = feed or {
+        "area": AREA,
+        "adsb_fi": adsb_fi,
+        "refresh_seconds": 15,
+        "trail_minutes": 5,
+        "color_by_altitude": color_by_altitude,
+        "overhead_radius_km": 5,
+        "overhead_altitude": 1500,
+        "overhead_altitude_unit": "m",
+    }
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="ADS-B",

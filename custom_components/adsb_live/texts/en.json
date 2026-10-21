@@ -26,5 +26,8 @@
   "legend_ground": "On the ground",
   "thousands_separator": ",",
   "decimal_separator": ".",
-  "legend_unknown": "Altitude unknown"
+  "legend_unknown": "Altitude unknown",
+  "route": "Route",
+  "photo": "Photo",
+  "photo_credit": "© {photographer}, Planespotters.net"
 }

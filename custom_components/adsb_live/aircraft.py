@@ -14,7 +14,20 @@ from typing import Any
 from homeassistant.util import dt as dt_util
 
 from .colors import altitude_color
-from .const import CONF_ADSB_FI, CONF_AREA, CONF_COLOR_BY_ALTITUDE, CONF_TRAIL_MINUTES, DEFAULT_COLOR_BY_ALTITUDE
+from .const import (
+    CONF_ADSB_FI,
+    CONF_AREA,
+    CONF_COLOR_BY_ALTITUDE,
+    CONF_OVERHEAD_ALTITUDE,
+    CONF_OVERHEAD_ALTITUDE_UNIT,
+    CONF_OVERHEAD_RADIUS,
+    CONF_TRAIL_MINUTES,
+    DEFAULT_COLOR_BY_ALTITUDE,
+    DEFAULT_OVERHEAD_ALTITUDE,
+    DEFAULT_OVERHEAD_RADIUS_KM,
+    DOMAIN,
+    SERVICE_GET_AIRCRAFT_DETAILS,
+)
 from .geo import KM_PER_NM, METRES_PER_FOOT, Area, haversine_km, round_position, simplify_path
 from .texts import Texts
 
@@ -56,6 +69,10 @@ class FeedConfig:
     adsb_fi: bool
     trail_minutes: int
     color_by_altitude: bool
+    overhead_radius_km: float
+    overhead_altitude: float
+    # "m" or "ft", the unit the altitude was entered in.
+    overhead_altitude_unit: str
 
     @classmethod
     def from_data(cls, data: Mapping[str, Any]) -> FeedConfig:
@@ -64,8 +81,11 @@ class FeedConfig:
             area=Area.from_selector(data[CONF_AREA]),
             adsb_fi=data[CONF_ADSB_FI],
             trail_minutes=data[CONF_TRAIL_MINUTES],
-            # A feed saved before the setting existed in the integration uses the default.
+            # A feed saved before a setting existed in the integration uses its default.
             color_by_altitude=data.get(CONF_COLOR_BY_ALTITUDE, DEFAULT_COLOR_BY_ALTITUDE),
+            overhead_radius_km=data.get(CONF_OVERHEAD_RADIUS, DEFAULT_OVERHEAD_RADIUS_KM),
+            overhead_altitude=data.get(CONF_OVERHEAD_ALTITUDE, DEFAULT_OVERHEAD_ALTITUDE["m"]),
+            overhead_altitude_unit=data.get(CONF_OVERHEAD_ALTITUDE_UNIT, "m"),
         )
 
 
@@ -239,37 +259,72 @@ def detail_rows(plane: Aircraft, distance_km: float, texts: Texts, unit: str) ->
     return [{"label": texts(label), "value": str(value)} for label, value in candidates if value not in (None, "")]
 
 
+def emergency_squawk(plane: Aircraft) -> str | None:
+    squawk = str(plane.data.get("squawk") or "")
+    return squawk if squawk in EMERGENCY_SQUAWKS else None
+
+
+def is_military(plane: Aircraft) -> bool:
+    flags = plane.data.get("dbFlags")
+    return isinstance(flags, int) and not isinstance(flags, bool) and bool(flags & DB_FLAG_MILITARY)
+
+
 def notices(plane: Aircraft, texts: Texts) -> list[str]:
     result = []
-    if (squawk := str(plane.data.get("squawk") or "")) in EMERGENCY_SQUAWKS:
+    if squawk := emergency_squawk(plane):
         result.append(texts(f"squawk_{squawk}"))
-    flags = plane.data.get("dbFlags")
-    if isinstance(flags, int) and flags & DB_FLAG_MILITARY:
+    if is_military(plane):
         result.append(texts("military"))
     return result
 
 
+def is_overhead(plane: Aircraft, config: FeedConfig) -> bool:
+    """In the air within the feed's overhead radius of its area's centre, and below its overhead altitude."""
+    if config.overhead_radius_km <= 0 or plane.on_ground or plane.altitude_ft is None:
+        return False
+    within = config.area.distance_km(plane.latitude, plane.longitude) <= config.overhead_radius_km
+    # In the unit the limit was entered in, so an aircraft at exactly the limit as entered is never below it.
+    altitude = plane.altitude_ft if config.overhead_altitude_unit == "ft" else plane.altitude_ft * METRES_PER_FOOT
+    return within and altitude < config.overhead_altitude
+
+
+def measure(aircraft: Iterable[Aircraft], distance_from: tuple[float, float]) -> list[tuple[float, Aircraft]]:
+    """Each aircraft with its distance in km from `distance_from` (latitude, longitude), nearest first."""
+    return sorted(
+        ((haversine_km(distance_from[0], distance_from[1], plane.latitude, plane.longitude), plane) for plane in aircraft),
+        key=lambda pair: pair[0],
+    )
+
+
+def heading(plane: Aircraft) -> int | None:
+    """Its track over the ground, or where its nose points when it sends no track, in whole degrees."""
+    value = number(plane.data.get("track"))
+    if value is None:
+        value = number(plane.data.get("true_heading"))
+    return round(value) % 360 if value is not None else None
+
+
+def aircraft_name(plane: Aircraft) -> str:
+    """Its callsign, or its registration or address when it sends no callsign."""
+    return plane.callsign or str(plane.data.get("r") or "") or plane.hex.upper()
+
+
 def build_features(
-    aircraft: Iterable[Aircraft],
-    distance_from: tuple[float, float],
+    measured: Iterable[tuple[float, Aircraft]],
     trails: Trails | None,
     texts: Texts,
     unit: str,
     color_by_altitude: bool,
+    feed_id: str,
 ) -> list[dict[str, Any]]:
-    """Point features for the aircraft, nearest first, each followed by its trail when it has one.
+    """Point features for the measured aircraft (see measure), in their order, each followed by its trail when it has one.
 
-    Distances are measured from `distance_from` (latitude, longitude), the receiver when its position is known.
-    Altitudes and vertical rates are written in `unit`, "m" or "ft". With `color_by_altitude`, each point has
-    its altitude's colour, which its trail takes too.
+    Altitudes and vertical rates are written in `unit`, "m" or "ft". With `color_by_altitude`, each point has its
+    altitude's colour, which its trail takes too. Each point's details on tap name the feed by `feed_id`.
     """
-    measured = sorted(
-        ((haversine_km(distance_from[0], distance_from[1], plane.latitude, plane.longitude), plane) for plane in aircraft),
-        key=lambda pair: pair[0],
-    )
     features: list[dict[str, Any]] = []
     for distance_km, plane in measured:
-        features.append(point_feature(plane, distance_km, texts, unit, color_by_altitude))
+        features.append(point_feature(plane, distance_km, texts, unit, color_by_altitude, feed_id))
         if trails is not None and (line := trails.line(plane.hex)):
             features.append(
                 {
@@ -282,13 +337,10 @@ def build_features(
     return features
 
 
-def point_feature(plane: Aircraft, distance_km: float, texts: Texts, unit: str, color_by_altitude: bool) -> dict[str, Any]:
+def point_feature(plane: Aircraft, distance_km: float, texts: Texts, unit: str, color_by_altitude: bool, feed_id: str) -> dict[str, Any]:
     data = plane.data
-    name = plane.callsign or str(data.get("r") or "") or plane.hex.upper()
+    name = aircraft_name(plane)
     speed = number(data.get("gs"))
-    heading = number(data.get("track"))
-    if heading is None:
-        heading = number(data.get("true_heading"))
     altitude = altitude_text(plane, texts, unit)
     category = str(data.get("category") or "")
     # Addresses starting with ~ aren't ICAO addresses, such as a TIS-B track's or an anonymous one.
@@ -297,7 +349,7 @@ def point_feature(plane: Aircraft, distance_km: float, texts: Texts, unit: str, 
         "name": name,
         "kind": plane.kind,
         "updated": dt_util.utc_from_timestamp(plane.position_time).isoformat(timespec="seconds"),
-        "heading": round(heading) % 360 if heading is not None else None,
+        "heading": heading(plane),
         "stationary": True if plane.on_ground else None,
         "speed_kmh": round(speed * KM_PER_NM) if speed is not None else None,
         "subtitle": " · ".join(str(part) for part in (data.get("desc"), data.get("ownOp")) if part),
@@ -306,6 +358,8 @@ def point_feature(plane: Aircraft, distance_km: float, texts: Texts, unit: str, 
         "color": altitude_color(plane.altitude_ft, plane.on_ground) if color_by_altitude else None,
         "footer": " · ".join(part for part in (address, category) if part),
         "list": {"value": altitude} if altitude else None,
+        # The route and photo, fetched only for an aircraft someone opens.
+        "detail_action": {"action": f"{DOMAIN}.{SERVICE_GET_AIRCRAFT_DETAILS}", "data": {"feed": feed_id, "hex": plane.hex}},
         # The feed's own properties, for the list's sort orders.
         "distance_km": round(distance_km, 1),
         "altitude_ft": plane.altitude_ft,

@@ -26,5 +26,8 @@
   "legend_ground": "Maassa",
   "thousands_separator": " ",
   "decimal_separator": ",",
-  "legend_unknown": "Korkeus tuntematon"
+  "legend_unknown": "Korkeus tuntematon",
+  "route": "Reitti",
+  "photo": "Kuva",
+  "photo_credit": "© {photographer}, Planespotters.net"
 }

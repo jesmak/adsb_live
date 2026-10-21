@@ -8,11 +8,11 @@ from typing import Any
 
 import pytest
 
-from custom_components.adsb_live.aircraft import Aircraft, Trails, build_features, in_area, merge, notices, parse_aircraft
+from custom_components.adsb_live.aircraft import Aircraft, Trails, build_features, in_area, measure, merge, notices, parse_aircraft
 from custom_components.adsb_live.api import normalize_url, without_login
 from custom_components.adsb_live.colors import GROUND_COLOR, UNKNOWN_COLOR, altitude_color, legend
 from custom_components.adsb_live.const import LANGUAGES
-from custom_components.adsb_live.geo import Area
+from custom_components.adsb_live.geo import Area, distance_to_leg_km, haversine_km
 from custom_components.adsb_live.health import receiver_health
 from custom_components.adsb_live.texts import PLACEHOLDER, Texts, load_texts
 
@@ -21,6 +21,7 @@ from .conftest import AREA, RECEIVER_POSITION, adsb_fi_aircraft, local_aircraft,
 ENGLISH = load_texts("en")
 FINNISH = load_texts("fi")
 COMPONENT_DIR = Path(__file__).parent.parent / "custom_components" / "adsb_live"
+FEED_ID = "feed-1"
 
 
 def plane(hex_code: str, position_time: float, longitude: float, latitude: float = 61.5, **data: object) -> Aircraft:
@@ -28,7 +29,7 @@ def plane(hex_code: str, position_time: float, longitude: float, latitude: float
 
 
 def features_of(aircraft: list[Aircraft], texts: Any = ENGLISH, unit: str = "m", colors: bool = False) -> list[dict[str, Any]]:
-    return build_features(aircraft, RECEIVER_POSITION, None, texts, unit, colors)
+    return build_features(measure(aircraft, RECEIVER_POSITION), None, texts, unit, colors, FEED_ID)
 
 
 def test_only_live_positions_of_aircraft_are_read() -> None:
@@ -161,7 +162,7 @@ def test_colours_follow_the_altitude_on_tar1090s_scale() -> None:
     aircraft = [plane("a", 0, 24.0, alt_baro=12000), plane("b", 0, 24.1, alt_baro="ground"), plane("c", 0, 24.2)]
     trails = Trails()
     trails.update([plane("a", -15, 23.99, alt_baro=12000), aircraft[0]], now=0, minutes=5)
-    features = build_features(aircraft, RECEIVER_POSITION, trails, ENGLISH, "m", True)
+    features = build_features(measure(aircraft, RECEIVER_POSITION), trails, ENGLISH, "m", True, FEED_ID)
     colors = {feature["id"]: feature["properties"].get("color") for feature in features}
     assert colors == {"aircraft:a": "#0cc35a", "aircraft:a/trail": None, "aircraft:b": GROUND_COLOR, "aircraft:c": UNKNOWN_COLOR}, (
         "a trail takes its aircraft's colour through `point`"
@@ -204,7 +205,7 @@ def test_trails_follow_an_aircraft_and_end_with_its_minutes() -> None:
     trails.update([plane("a", 1030, 24.02)], now=1030, minutes=5)
     assert trails.line("a") == [[24.0, 61.5], [24.02, 61.5]]
 
-    features = build_features([plane("a", 1030, 24.02)], RECEIVER_POSITION, trails, ENGLISH, "m", False)
+    features = build_features(measure([plane("a", 1030, 24.02)], RECEIVER_POSITION), trails, ENGLISH, "m", False, FEED_ID)
     assert features[1] == {
         "type": "Feature",
         "id": "aircraft:a/trail",
@@ -301,3 +302,16 @@ def test_an_aircraft_list_that_isnt_a_list_is_refused() -> None:
         parse_aircraft({"now": 0, "aircraft": {"hex": "46a1b2"}})
     with pytest.raises(ValueError):
         parse_aircraft({"now": 0, "ac": "nothing"}, remote=True)
+
+
+def test_the_distance_to_a_route_is_to_its_nearest_point_between_its_ends() -> None:
+    tampere, helsinki = (61.414, 23.604), (60.317, 24.963)
+    halfway = (60.9, 24.3)
+    assert distance_to_leg_km(halfway, tampere, helsinki) < 5, "on the line"
+    assert 40 < distance_to_leg_km((60.9, 25.2), tampere, helsinki) < 60, "beside it"
+    behind = (62.0, 22.9)
+    assert distance_to_leg_km(behind, tampere, helsinki) == pytest.approx(haversine_km(*behind, *tampere)), "behind the start"
+    past = (59.8, 25.6)
+    assert distance_to_leg_km(past, tampere, helsinki) == pytest.approx(haversine_km(*past, *helsinki)), "past the end"
+    assert distance_to_leg_km(tampere, tampere, helsinki) == 0
+    assert distance_to_leg_km(halfway, tampere, tampere) == pytest.approx(haversine_km(*halfway, *tampere)), "a route of one airport"

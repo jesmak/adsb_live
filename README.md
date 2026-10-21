@@ -11,10 +11,12 @@ A custom component for anyone who runs an ADS-B receiver with [readsb](https://g
 behind [tar1090](https://github.com/wiedehopf/tar1090), for example in
 [ultrafeeder](https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder) or on a Raspberry Pi. It reads the
 aircraft straight from the receiver on your own network, with no account, key or cloud service, and turns them into
-**map feeds**: one sensor per feed, holding every aircraft in it as GeoJSON.
+**map feeds**: a sensor per feed, holding every aircraft in it as GeoJSON, with the nearest aircraft and an event
+entity for emergencies, military aircraft and aircraft low overhead.
 
 Show the feeds on a map with [map-feed-card](https://github.com/jesmak/map-feed-card), which draws each aircraft
-heading the way it flies, with its trail, and shows its details beside the map or in a list. The feed format is
+heading the way it flies, with its trail, and shows its details beside the map or in a list, with its route and a
+photo when it is opened. The feed format is
 documented in [map-feed-format.md](https://github.com/jesmak/map-feed-card/blob/main/docs/map-feed-format.md).
 
 A receiver hears only what its antenna can see. A feed can add the aircraft [adsb.fi](https://adsb.fi/) knows around
@@ -59,17 +61,19 @@ new address is checked, so the language and unit can be changed while the receiv
 
 ### Aircraft feed
 
-Add a feed from the integration page with **Add aircraft feed**. Each feed is one map feed sensor, named after the
-feed.
+Add a feed from the integration page with **Add aircraft feed**. Each feed is a map feed sensor, a nearest aircraft
+sensor and an event entity, named after the feed.
 
-| Setting                   | Type    | Description                                                                                                                                                                                         | Default                             |
-| ------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| Name                      | text    | Also the name of the feed's sensor.                                                                                                                                                                 |                                     |
-| Area                      | circle  | Aircraft inside the circle are in the feed.                                                                                                                                                         | 100 km around the receiver, or home |
-| Add aircraft from adsb.fi | on/off  | Adds the aircraft adsb.fi knows in the area that your receiver doesn't hear. The circle's radius can then be at most 461 km. See [Data](#data).                                                     | Off                                 |
-| Update interval           | seconds | How often the feed is updated, from every 15 seconds to every 600.                                                                                                                                  | 15                                  |
-| Trail length              | minutes | How far back each aircraft's trail goes, up to 30 minutes. 0 leaves trails out.                                                                                                                     | 5                                   |
-| Colour by altitude        | on/off  | Each aircraft and its trail in its altitude's colour, on the scale tar1090 uses, with a legend on the map. Off, map-feed-card colours them by type of aircraft, such as light, heavy or helicopter. | On                                  |
+| Setting                             | Type    | Description                                                                                                                                                                                         | Default                             |
+| ----------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Name                                | text    | The name its sensors and event entity are named after.                                                                                                                                              |                                     |
+| Area                                | circle  | Aircraft inside the circle are in the feed.                                                                                                                                                         | 100 km around the receiver, or home |
+| Add aircraft from adsb.fi           | on/off  | Adds the aircraft adsb.fi knows in the area that your receiver doesn't hear. The circle's radius can then be at most 461 km. See [Data](#data).                                                     | Off                                 |
+| Update interval                     | seconds | How often the feed is updated, from every 15 seconds to every 600.                                                                                                                                  | 15                                  |
+| Trail length                        | minutes | How far back each aircraft's trail goes, up to 30 minutes. 0 leaves trails out.                                                                                                                     | 5                                   |
+| Colour by altitude                  | on/off  | Each aircraft and its trail in its altitude's colour, on the scale tar1090 uses, with a legend on the map. Off, map-feed-card colours them by type of aircraft, such as light, heavy or helicopter. | On                                  |
+| Aircraft overhead, radius           | km      | An aircraft in the air this near the area's centre, and below the next setting's altitude, fires the feed's overhead event. 0 turns it off.                                                         | 5                                   |
+| Aircraft overhead, maximum altitude | m or ft | The altitude an aircraft must be below for the overhead event, in the receiver's altitude unit.                                                                                                     | 1 500 m or 5 000 ft                 |
 
 An aircraft is in a feed while its position is less than a minute old. What transmits a category of set C is left
 out: surface vehicles and obstacles, fixed or tethered such as a balloon, and C0 without a subcategory.
@@ -120,9 +124,53 @@ military aircraft get a notice in the details. The kinds are `air.light`, `air.s
 `air.high_performance`, `air.rotorcraft`, `air.glider`, `air.balloon`, `air.drone` and `air.other`, from the category
 the aircraft transmits. The list can be sorted by distance or altitude.
 
+Opening an aircraft on the map fetches its route and a photo, which the card shows in its details (see
+[Actions](#actions)). Nothing is fetched for an aircraft nobody opens.
+
 With colours by altitude on, each aircraft has a `color` and the feed a `legend` of the ground and seven altitudes
 in the receiver's unit, and of the light grey for an unknown altitude while some aircraft has one. Metres from a
 kilometre up are written in kilometres there, to keep the legend short. A trail takes its aircraft's colour.
+
+### The nearest aircraft
+
+Every feed has a sensor whose state is the nearest aircraft in the air, by its callsign, or its registration or
+address when it sends no callsign, measured as the feed measures distances. Its attributes are its `name`, `hex`
+address, `callsign`, `registration`, `type`, `squawk`, `military`, `distance_km`, `altitude` in the receiver's
+altitude unit, `heading`, `latitude` and `longitude`, those the aircraft has. It is unknown while no aircraft in the
+feed is in the air.
+
+## Events
+
+Every feed has an event entity that fires when an aircraft in it:
+
+| Event type  | When                                                                                           |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| `emergency` | squawks an emergency code, 7500 (hijack), 7600 (radio failure) or 7700                         |
+| `military`  | is flagged military in the aircraft database                                                   |
+| `overhead`  | is in the air within the overhead radius of the area's centre, and below the overhead altitude |
+
+The event's attributes are those of the nearest aircraft sensor, for the aircraft that fired it. Each type fires once
+for an aircraft while it stays in that state, and again only after it has been out of it, or out of the feed, for 10
+minutes, or for two updates when the feed updates less often than every 5 minutes. Restarting Home Assistant or
+reloading the receiver, which any change to it or its feeds does, starts afresh, so an aircraft already in a state
+fires again.
+
+## Actions
+
+### `adsb_live.get_aircraft_details`
+
+Returns an aircraft's route and photo as map feed detail rows, `{"details": [rows]}`. Each aircraft in a feed names
+this action as its detail action, so map-feed-card calls it when the aircraft is opened.
+
+| Field  | Description                                                           |
+| ------ | --------------------------------------------------------------------- |
+| `feed` | The feed's ID, which the feed gives in each aircraft's detail action. |
+| `hex`  | The aircraft's ICAO address, such as `4ca8e1`.                        |
+
+The route is by the aircraft's callsign. A callsign keeps its route for long, but not forever, so the route is left
+out when the aircraft is more than 100 km from the way between its airports. The photo is by the aircraft's address,
+linked to its page on Planespotters and credited to its photographer. A source that fails or knows nothing leaves its
+row out. Both answers are kept for a day.
 
 ## Examples
 
@@ -159,6 +207,27 @@ actions:
           message: The receiver has decoded almost nothing, or not answered, for 30 minutes.
 ```
 
+A notice when an aircraft in the feed squawks an emergency. An update can bring several events at once, so an
+automation whose actions take a while, such as a notification to a phone, runs queued to handle each of them:
+
+```yaml
+mode: queued
+triggers:
+    - trigger: event.received
+      target:
+          entity_id: event.aircraft_near_tampere_aircraft_events
+      options:
+          event_type:
+              - emergency
+actions:
+    - action: persistent_notification.create
+      data:
+          title: Emergency squawk
+          message: >-
+              {{ trigger.to_state.attributes.name }} squawks {{ trigger.to_state.attributes.squawk }},
+              {{ trigger.to_state.attributes.distance_km }} km away.
+```
+
 ## Data
 
 The receiver's data is your own. The registrations, types, operators and military flags come from the aircraft
@@ -176,6 +245,13 @@ them updates a few seconds late. When adsb.fi fails or doesn't answer within 5 s
 receiver hears. The log says so once for each feed, without the query's address, and again when it answers.
 Restarting Home Assistant, or reloading a receiver, which any change to it or its feeds does, starts that receiver's
 feeds afresh, so they say it again if adsb.fi is still failing.
+
+The routes come from [Virtual Radar Server](https://www.virtualradarserver.co.uk/)'s standing data, which
+[adsb.lol](https://adsb.lol/) publishes under [CC0](https://github.com/adsblol/vrs-standing-data). The photos come
+from [Planespotters](https://www.planespotters.net/). Under its terms each photo is credited to its photographer and,
+shown large, links to its page there, its answers are kept for a day at most, and the picture is loaded by the browser
+that shows it, straight from Planespotters, never stored or passed on by the integration. The requests carry the same
+User-Agent as adsb.fi's, and the photo's request carries the aircraft's address.
 
 Keep areas to what a map shows at once. A feed of a hundred aircraft with trails is several tens of kilobytes, which
 Home Assistant sends to every open dashboard on each update.
@@ -203,19 +279,21 @@ python3.14 -m venv .venv
 .venv/bin/ruff format --check .
 ```
 
-| Path                                | What it contains                                                                           |
-| ----------------------------------- | ------------------------------------------------------------------------------------------ |
-| `__init__.py`                       | Setup: the receiver and one coordinator per feed                                           |
-| `config_flow.py`                    | The receiver and feed forms                                                                |
-| `coordinator.py`                    | Fetching the statistics and the feeds                                                      |
-| `sensor.py`                         | The health sensors and feed sensors                                                        |
-| `aircraft.py`                       | Reading readsb's JSON, trails and building feed items                                      |
-| `colors.py`                         | Colours by altitude and the feed's legend                                                  |
-| `health.py`                         | The health sensors' values from readsb's statistics                                        |
-| `geo.py`                            | Areas, distances, trail simplification and unit conversions                                |
-| `api.py`                            | The receiver's HTTP client, and adsb.fi's, which every feed shares for its request spacing |
-| `texts.py`, `texts/<language>.json` | Texts written into feeds                                                                   |
-| `translations/<language>.json`      | Home Assistant UI texts                                                                    |
+| Path                                | What it contains                                                                                                       |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `__init__.py`                       | Setup: the receiver and one coordinator per feed                                                                       |
+| `config_flow.py`                    | The receiver and feed forms                                                                                            |
+| `coordinator.py`                    | Fetching the statistics and the feeds                                                                                  |
+| `sensor.py`                         | The health sensors, feed sensors and nearest aircraft                                                                  |
+| `event.py`                          | The feeds' event entities                                                                                              |
+| `services.py`                       | The detail action, an aircraft's route and photo                                                                       |
+| `aircraft.py`                       | Reading readsb's JSON, trails and building feed items                                                                  |
+| `colors.py`                         | Colours by altitude and the feed's legend                                                                              |
+| `health.py`                         | The health sensors' values from readsb's statistics                                                                    |
+| `geo.py`                            | Areas, distances, trail simplification and unit conversions                                                            |
+| `api.py`                            | The receiver's HTTP client, adsb.fi's, which every feed shares for its request spacing, and the route and photo client |
+| `texts.py`, `texts/<language>.json` | Texts written into feeds                                                                                               |
+| `translations/<language>.json`      | Home Assistant UI texts                                                                                                |
 
 ## Support
 

@@ -35,6 +35,20 @@ CONF_TRAIL_MINUTES: Final = "trail_minutes"
 CONF_COLOR_BY_ALTITUDE: Final = "color_by_altitude"
 # Also for a feed saved without the setting.
 DEFAULT_COLOR_BY_ALTITUDE: Final = True
+# Overhead: within this radius of the area's centre and below this altitude. A radius of 0 turns it off. The altitude
+# is stored in the unit it was entered in, with that unit, so it is compared as it was entered.
+CONF_OVERHEAD_RADIUS: Final = "overhead_radius_km"
+CONF_OVERHEAD_ALTITUDE: Final = "overhead_altitude"
+CONF_OVERHEAD_ALTITUDE_UNIT: Final = "overhead_altitude_unit"
+DEFAULT_OVERHEAD_RADIUS_KM: Final = 5
+# By the receiver's unit for a new feed. A feed saved without the settings has 1 500 m.
+DEFAULT_OVERHEAD_ALTITUDE: Final = {"m": 1500, "ft": 5000}
+MAX_OVERHEAD_RADIUS_KM: Final = 50
+
+# The detail action that feeds name for each aircraft.
+SERVICE_GET_AIRCRAFT_DETAILS: Final = "get_aircraft_details"
+ATTR_FEED: Final = "feed"
+ATTR_HEX: Final = "hex"
 
 # The map feed format allows live vehicle positions every 15 seconds.
 MIN_REFRESH_SECONDS: Final = 15

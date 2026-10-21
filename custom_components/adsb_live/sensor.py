@@ -1,4 +1,4 @@
-"""The receiver's health sensors, and a map feed sensor per feed.
+"""The receiver's health sensors, and per feed a map feed sensor and a sensor for the nearest aircraft.
 
 A feed sensor's state is the number of aircraft; they are in the `geojson`
 attribute, in the Map Feed format (docs/map-feed-format.md in map-feed-card).
@@ -11,10 +11,11 @@ from typing import Any
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
 from homeassistant.const import MATCH_ALL, UnitOfLength
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .aircraft import aircraft_name
 from .api import without_login
 from .colors import legend
 from .const import ADSB_FI_ATTRIBUTION, ADSB_FI_ATTRIBUTION_URL, DOMAIN, MAP_FEED_VERSION
@@ -80,7 +81,7 @@ async def async_setup_entry(
     runtime = entry.runtime_data
     async_add_entities([HealthSensor(runtime.stats, description) for description in HEALTH_SENSORS])
     for subentry_id, coordinator in runtime.feeds.items():
-        async_add_entities([MapFeedSensor(coordinator)], config_subentry_id=subentry_id)
+        async_add_entities([MapFeedSensor(coordinator), NearestAircraftSensor(coordinator)], config_subentry_id=subentry_id)
 
 
 class HealthSensor(CoordinatorEntity[StatsCoordinator], SensorEntity):
@@ -120,11 +121,7 @@ class MapFeedSensor(CoordinatorEntity[FeedCoordinator], SensorEntity):
         self._attr_unique_id = subentry.subentry_id
         if coordinator.feed_config.adsb_fi:
             self._attr_attribution = ADSB_FI_ATTRIBUTION
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, subentry.subentry_id)},
-            name=subentry.title,
-            entry_type=DeviceEntryType.SERVICE,
-        )
+        self._attr_device_info = coordinator.device_info
 
     @property
     def native_value(self) -> int | None:
@@ -158,3 +155,31 @@ class MapFeedSensor(CoordinatorEntity[FeedCoordinator], SensorEntity):
             attributes["updated"] = data.updated.isoformat(timespec="seconds")
             attributes["geojson"] = {"type": "FeatureCollection", "features": data.features}
         return attributes
+
+
+class NearestAircraftSensor(CoordinatorEntity[FeedCoordinator], SensorEntity):
+    """The nearest aircraft in the air in the feed, by its name, measured as the feed measures distances."""
+
+    # Its distance and altitude change on every update: only which aircraft it is goes to the database.
+    _unrecorded_attributes = frozenset({MATCH_ALL})
+    _attr_has_entity_name = True
+    _attr_translation_key = "nearest_aircraft"
+    _attr_icon = "mdi:airplane-marker"
+
+    def __init__(self, coordinator: FeedCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.subentry.subentry_id}_nearest"
+        self._attr_device_info = coordinator.device_info
+
+    @property
+    def native_value(self) -> str | None:
+        data = self.coordinator.data
+        return aircraft_name(data.nearest[1]) if data and data.nearest else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self.coordinator.data
+        if not data or not data.nearest:
+            return {}
+        distance_km, plane = data.nearest
+        return self.coordinator.event_data(plane, distance_km)

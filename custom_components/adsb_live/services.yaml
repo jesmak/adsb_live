@@ -1,0 +1,12 @@
+get_aircraft_details:
+  fields:
+    feed:
+      required: true
+      example: "01K9X3M7Q2ZC8Y4T6B5N1R0WJH"
+      selector:
+        text:
+    hex:
+      required: true
+      example: "4ca8e1"
+      selector:
+        text:

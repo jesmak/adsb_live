@@ -30,6 +30,31 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * EARTH_RADIUS_KM * math.asin(min(1.0, math.sqrt(a)))
 
 
+def _bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Initial bearing from the first point to the second, in radians."""
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_lon = math.radians(lon2 - lon1)
+    return math.atan2(math.sin(d_lon) * math.cos(phi2), math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(d_lon))
+
+
+def distance_to_leg_km(point: tuple[float, float], start: tuple[float, float], end: tuple[float, float]) -> float:
+    """The shortest distance from a point to the great circle between two others, within its ends (latitude first)."""
+    to_point = haversine_km(*start, *point)
+    if to_point == 0 or start == end:
+        return to_point
+    angle = _bearing(*start, *point) - _bearing(*start, *end)
+    # Behind the start, the start is nearest.
+    if math.cos(angle) < 0:
+        return to_point
+    angular = to_point / EARTH_RADIUS_KM
+    cross_track = math.asin(max(-1.0, min(1.0, math.sin(angular) * math.sin(angle))))
+    along_track = math.acos(max(-1.0, min(1.0, math.cos(angular) / math.cos(cross_track)))) * EARTH_RADIUS_KM
+    # Past the end, the end is nearest.
+    if along_track > haversine_km(*start, *end):
+        return haversine_km(*end, *point)
+    return abs(cross_track) * EARTH_RADIUS_KM
+
+
 @dataclass(frozen=True)
 class Area:
     """A circle around a point."""

@@ -3,18 +3,36 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .aircraft import Aircraft, FeedConfig, Trails, build_features, in_area, merge, number, parse_aircraft
-from .api import AdsbError, AdsbFiClient, ReceiverClient
+from .aircraft import (
+    Aircraft,
+    FeedConfig,
+    Trails,
+    aircraft_name,
+    build_features,
+    emergency_squawk,
+    heading,
+    in_area,
+    is_military,
+    is_overhead,
+    measure,
+    merge,
+    number,
+    parse_aircraft,
+)
+from .api import AdsbError, AdsbFiClient, DetailsClient, ReceiverClient
 from .const import CONF_REFRESH_SECONDS, DOMAIN, STATS_REFRESH_SECONDS
+from .geo import METRES_PER_FOOT
 from .health import receiver_health
 from .texts import Texts
 
@@ -25,6 +43,12 @@ _LOGGER = logging.getLogger(__name__)
 # The margins leave room for the receiver's clock to differ from Home Assistant's.
 AIRCRAFT_MAX_AGE_SECONDS = 120
 STATS_MAX_AGE_SECONDS = 180
+
+# An aircraft that leaves an event's state, or drops out of the feed, for this long, or for two updates when they take
+# longer, fires the event again when it comes back. Shorter gaps, such as an update it missed at the edge of coverage
+# or one that failed, don't count as leaving.
+EVENT_REARM_SECONDS = 10 * 60
+EVENT_TYPES = ("emergency", "military", "overhead")
 
 
 def check_written_lately(data: dict[str, Any], max_age_seconds: float, name: str) -> None:
@@ -56,6 +80,7 @@ class Receiver:
 class AdsbRuntimeData:
     receiver_client: ReceiverClient
     adsb_fi: AdsbFiClient
+    details: DetailsClient
     receiver: Receiver
     texts: Texts
     # "m" or "ft", for altitudes and vertical rates in the feeds.
@@ -89,12 +114,25 @@ class StatsCoordinator(DataUpdateCoordinator[dict[str, float | None]]):
 
 
 @dataclass(frozen=True)
+class AircraftEvent:
+    # One of EVENT_TYPES.
+    type: str
+    data: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class FeedData:
     features: list[dict[str, Any]]
     updated: datetime
     count: int
     # Whether some aircraft in the feed has no altitude, which the legend then explains.
     unknown_altitude: bool
+    # Every aircraft in the feed by its address, with its distance in km, for the details on tap.
+    aircraft: dict[str, tuple[float, Aircraft]] = field(default_factory=dict)
+    # The nearest aircraft in the air, with its distance, or None.
+    nearest: tuple[float, Aircraft] | None = None
+    # What happened in this update: aircraft that entered an event's state.
+    events: list[AircraftEvent] = field(default_factory=list)
 
 
 class FeedCoordinator(DataUpdateCoordinator[FeedData]):
@@ -114,10 +152,17 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
         self.feed_config = FeedConfig.from_data(subentry.data)
         self._trails = Trails()
         self._adsb_fi_failing = False
+        # For each event type, the aircraft in its state, by when they were last seen in it.
+        self._in_state: dict[str, dict[str, float]] = {event_type: {} for event_type in EVENT_TYPES}
 
     @property
     def runtime(self) -> AdsbRuntimeData:
         return self.config_entry.runtime_data
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """The feed's device, which its entities share."""
+        return DeviceInfo(identifiers={(DOMAIN, self.subentry.subentry_id)}, name=self.subentry.title, entry_type=DeviceEntryType.SERVICE)
 
     async def _async_update_data(self) -> FeedData:
         runtime = self.runtime
@@ -138,12 +183,66 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
             self._trails.update(aircraft, now.timestamp(), config.trail_minutes)
             trails = self._trails
         distance_from = runtime.receiver.position or (config.area.latitude, config.area.longitude)
+        measured = measure(aircraft, distance_from)
         return FeedData(
-            build_features(aircraft, distance_from, trails, runtime.texts, runtime.altitude_unit, config.color_by_altitude),
+            build_features(measured, trails, runtime.texts, runtime.altitude_unit, config.color_by_altitude, self.subentry.subentry_id),
             now,
             len(aircraft),
             any(plane.altitude_ft is None for plane in aircraft),
+            aircraft={plane.hex: (distance_km, plane) for distance_km, plane in measured},
+            nearest=next(((distance_km, plane) for distance_km, plane in measured if not plane.on_ground), None),
+            events=self._new_events(measured, now.timestamp()),
         )
+
+    def _new_events(self, measured: list[tuple[float, Aircraft]], now: float) -> list[AircraftEvent]:
+        """The aircraft that entered each event's state since they were last in it, nearest first."""
+        # The gap is measured from the last update that saw the aircraft in the state, and updates come a whole
+        # interval apart: one missed update is a gap of two intervals, two missed ones three. The limit is the whole
+        # updates that cover the rearm time, and half an interval more, so it falls between two updates, never on one.
+        interval = self.update_interval.total_seconds()
+        rearm = (math.ceil(max(EVENT_REARM_SECONDS, 2 * interval) / interval) + 0.5) * interval
+        events = []
+        for distance_km, plane in measured:
+            states = {
+                "emergency": emergency_squawk(plane) is not None,
+                "military": is_military(plane),
+                "overhead": is_overhead(plane, self.feed_config),
+            }
+            for event_type, entered in states.items():
+                if not entered:
+                    continue
+                # Checked here, not only by the pruning below, which runs only when an update succeeds.
+                last = self._in_state[event_type].get(plane.hex)
+                if last is None or now - last > rearm:
+                    events.append(AircraftEvent(event_type, self.event_data(plane, distance_km)))
+                self._in_state[event_type][plane.hex] = now
+        # Forgetting what is old enough to fire again keeps the memory to the aircraft seen lately.
+        for seen in self._in_state.values():
+            for hex_code in [hex_code for hex_code, last in seen.items() if now - last > rearm]:
+                del seen[hex_code]
+        return events
+
+    def event_data(self, plane: Aircraft, distance_km: float) -> dict[str, Any]:
+        """What an event tells about its aircraft, the altitude in the receiver's unit."""
+        data = plane.data
+        altitude = plane.altitude_ft
+        if altitude is not None and self.runtime.altitude_unit == "m":
+            altitude = round(altitude * METRES_PER_FOOT)
+        values = {
+            "hex": plane.hex,
+            "name": aircraft_name(plane),
+            "callsign": plane.callsign,
+            "registration": data.get("r"),
+            "type": data.get("t"),
+            "squawk": data.get("squawk"),
+            "military": is_military(plane),
+            "distance_km": round(distance_km, 1),
+            "altitude": altitude,
+            "heading": heading(plane),
+            "latitude": plane.latitude,
+            "longitude": plane.longitude,
+        }
+        return {key: value for key, value in values.items() if value not in (None, "")}
 
     async def _adsb_fi(self, client: AdsbFiClient) -> list[Aircraft]:
         """adsb.fi's aircraft in the area. A failure only leaves them out: the receiver's own still show.

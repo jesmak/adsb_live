@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import aiohttp
 import pytest
@@ -26,6 +27,8 @@ FEED = {
     "refresh_seconds": 15,
     "trail_minutes": 5,
     "color_by_altitude": True,
+    "overhead_radius_km": 5,
+    "overhead_altitude": 1500,
 }
 
 
@@ -172,7 +175,16 @@ async def test_a_feed_needs_a_radius_within_what_adsb_fi_answers(hass: HomeAssis
 async def test_reconfiguring_a_feed_shows_and_keeps_its_settings(hass: HomeAssistant, receiver_api: AiohttpClientMocker) -> None:
     # Every setting differs from the form's defaults, so the form can only be showing the feed's own.
     small_area = {**AREA, "radius": 40_000}
-    feed = {"area": small_area, "adsb_fi": True, "refresh_seconds": 30, "trail_minutes": 10, "color_by_altitude": False}
+    feed = {
+        "area": small_area,
+        "adsb_fi": True,
+        "refresh_seconds": 30,
+        "trail_minutes": 10,
+        "color_by_altitude": False,
+        "overhead_radius_km": 2.5,
+        "overhead_altitude": 800,
+        "overhead_altitude_unit": "m",
+    }
     receiver_api.get(f"{ADSB_FI_API}/lat/61.50/lon/23.76/dist/23", json=adsb_fi_aircraft())
     entry = receiver_entry(hass, feed=feed)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -181,7 +193,8 @@ async def test_reconfiguring_a_feed_shows_and_keeps_its_settings(hass: HomeAssis
 
     result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
     assert result["type"] is FlowResultType.FORM
-    assert suggested_values(result) == {"name": "Aircraft near Tampere", **feed}
+    shown = {key: value for key, value in feed.items() if key != "overhead_altitude_unit"}
+    assert suggested_values(result) == {"name": "Aircraft near Tampere", **shown}, "the unit isn't a field, the receiver's is used"
     result = await hass.config_entries.subentries.async_configure(result["flow_id"], {**FEED, "name": "Renamed", "trail_minutes": 20})
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
@@ -189,9 +202,19 @@ async def test_reconfiguring_a_feed_shows_and_keeps_its_settings(hass: HomeAssis
     await hass.async_block_till_done()
     subentry = entry.subentries[subentry.subentry_id]
     assert subentry.title == "Renamed"
-    assert subentry.data == {"area": AREA, "adsb_fi": False, "refresh_seconds": 15, "trail_minutes": 20, "color_by_altitude": True}
+    assert subentry.data == {
+        "area": AREA,
+        "adsb_fi": False,
+        "refresh_seconds": 15,
+        "trail_minutes": 20,
+        "color_by_altitude": True,
+        "overhead_radius_km": 5,
+        "overhead_altitude": 1500,
+        "overhead_altitude_unit": "m",
+    }
     assert type(subentry.data["refresh_seconds"]) is int, "the form's numbers are saved as whole numbers"
     assert type(subentry.data["trail_minutes"]) is int
+    assert type(subentry.data["overhead_altitude"]) is int
 
     feed = hass.states.get("sensor.aircraft_near_tampere")
     assert "attribution" not in feed.attributes, "adsb.fi off after the change"
@@ -402,3 +425,80 @@ async def test_reconfiguring_to_an_address_with_a_login_saves_an_id_without_it(
 
     assert entry.data["url"] == login_url, "the requests need the login"
     assert entry.unique_id == "http://other.example:8080", "the id doesn't"
+
+
+def altitude_field(result: Any) -> Any:
+    key = next(key for key in result["data_schema"].schema if str(key) == "overhead_altitude")
+    return result["data_schema"].schema[key].config
+
+
+async def test_a_new_feed_takes_its_overhead_altitude_in_the_receivers_unit(hass: HomeAssistant, receiver_api: AiohttpClientMocker) -> None:
+    entry = receiver_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    result = await hass.config_entries.subentries.async_init((entry.entry_id, "feed"), context={"source": SOURCE_USER})
+    assert altitude_field(result)["unit_of_measurement"] == "m"
+    assert suggested_values(result)["overhead_altitude"] == 1500
+
+    hass.config_entries.async_update_entry(entry, data={**entry.data, "altitude_unit": "ft"})
+    await hass.async_block_till_done()
+    result = await hass.config_entries.subentries.async_init((entry.entry_id, "feed"), context={"source": SOURCE_USER})
+    assert altitude_field(result)["unit_of_measurement"] == "ft"
+    assert suggested_values(result)["overhead_altitude"] == 5000
+    result = await hass.config_entries.subentries.async_configure(result["flow_id"], {**FEED, "name": "Feet", "overhead_altitude": 2005})
+    await hass.async_block_till_done()
+    saved = next(subentry for subentry in entry.subentries.values() if subentry.title == "Feet")
+    assert (saved.data["overhead_altitude"], saved.data["overhead_altitude_unit"]) == (2005, "ft"), "as it was entered"
+
+
+async def test_after_the_receivers_unit_changes_the_form_shows_the_altitude_converted_and_saves_what_it_shows(
+    hass: HomeAssistant, receiver_api: AiohttpClientMocker
+) -> None:
+    entry = receiver_entry(hass)
+    hass.config_entries.async_update_entry(entry, data={**entry.data, "altitude_unit": "ft"})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    subentry = next(iter(entry.subentries.values()))
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
+    assert suggested_values(result)["overhead_altitude"] == 4920, "1 500 m in feet, to 10 ft"
+    result = await hass.config_entries.subentries.async_configure(result["flow_id"], {**FEED, "overhead_altitude": 4920})
+    await hass.async_block_till_done()
+    saved = entry.subentries[subentry.subentry_id].data
+    assert (saved["overhead_altitude"], saved["overhead_altitude_unit"]) == (4920, "ft"), "what was shown, in the unit shown"
+
+    # Back to metres, a limit as high as the feet form takes is shown as high as the metres form takes.
+    hass.config_entries.async_update_subentry(entry, subentry, data={**saved, "overhead_altitude": 33000})
+    hass.config_entries.async_update_entry(entry, data={**entry.data, "altitude_unit": "m"})
+    await hass.async_block_till_done()
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
+    assert suggested_values(result)["overhead_altitude"] == 10000
+
+
+async def test_a_feed_saved_without_the_overhead_settings_shows_their_defaults(
+    hass: HomeAssistant, receiver_api: AiohttpClientMocker
+) -> None:
+    feed = {"area": AREA, "adsb_fi": False, "refresh_seconds": 15, "trail_minutes": 5, "color_by_altitude": True}
+    entry = receiver_entry(hass, feed=feed)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    subentry = next(iter(entry.subentries.values()))
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
+    assert suggested_values(result) == {"name": "Aircraft near Tampere", **feed, "overhead_radius_km": 5, "overhead_altitude": 1500}, (
+        "1 500 m in a metre receiver"
+    )
+
+
+async def test_a_form_saves_its_altitude_in_the_unit_it_was_shown_in(hass: HomeAssistant, receiver_api: AiohttpClientMocker) -> None:
+    """The receiver changed to feet while the feed's form was open in metres: 1 500 is still metres."""
+    entry = receiver_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    result = await hass.config_entries.subentries.async_init((entry.entry_id, "feed"), context={"source": SOURCE_USER})
+    assert altitude_field(result)["unit_of_measurement"] == "m"
+    hass.config_entries.async_update_entry(entry, data={**entry.data, "altitude_unit": "ft"})
+    await hass.async_block_till_done()
+    result = await hass.config_entries.subentries.async_configure(result["flow_id"], {**FEED, "name": "Open in metres"})
+    await hass.async_block_till_done()
+    saved = next(subentry for subentry in entry.subentries.values() if subentry.title == "Open in metres")
+    assert (saved.data["overhead_altitude"], saved.data["overhead_altitude_unit"]) == (1500, "m")

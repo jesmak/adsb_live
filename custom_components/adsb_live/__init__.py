@@ -1,8 +1,9 @@
 """ADS-B Live: aircraft from your own ADS-B receiver, and optionally adsb.fi, as map feeds.
 
 A config entry is one receiver (readsb, usually behind tar1090), a device with
-its health sensors. Each feed is a config subentry with its own coordinator and
-sensor, which writes the Map Feed format that map-feed-card draws.
+its health sensors. Each feed is a config subentry with its own coordinator, a
+sensor that writes the Map Feed format map-feed-card draws, a sensor for the
+nearest aircraft and an event entity.
 """
 
 from __future__ import annotations
@@ -12,15 +13,25 @@ import asyncio
 from homeassistant.const import CONF_URL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
-from .api import ADSB_FI_CLIENT, AdsbError, AdsbFiClient, ReceiverClient
+from .api import ADSB_FI_CLIENT, DETAILS_CLIENT, AdsbError, AdsbFiClient, DetailsClient, ReceiverClient
 from .const import CONF_ALTITUDE_UNIT, CONF_LANGUAGE, DEFAULT_ALTITUDE_UNIT, DOMAIN
 from .coordinator import AdsbConfigEntry, AdsbRuntimeData, FeedCoordinator, Receiver, StatsCoordinator
+from .services import async_setup_services
 from .texts import async_load_texts
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.EVENT, Platform.SENSOR]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool:
@@ -28,9 +39,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
     session = async_get_clientsession(hass)
     client = ReceiverClient(session)
     if ADSB_FI_CLIENT not in hass.data:
-        # Identifies the integration to adsb.fi, with a way to reach its author. Contains no personal information.
+        # Identifies the integration to adsb.fi, the route data and Planespotters, with a way to reach its author.
+        # Contains no personal information.
         user_agent = f"{DOMAIN}/{integration.version} (+https://github.com/jesmak/adsb_live)"
         hass.data[ADSB_FI_CLIENT] = AdsbFiClient(session, user_agent)
+        hass.data[DETAILS_CLIENT] = DetailsClient(session, user_agent)
     url = entry.data[CONF_URL]
     try:
         receiver = Receiver.from_json(url, await client.receiver(url))
@@ -40,6 +53,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
     entry.runtime_data = AdsbRuntimeData(
         receiver_client=client,
         adsb_fi=hass.data[ADSB_FI_CLIENT],
+        details=hass.data[DETAILS_CLIENT],
         receiver=receiver,
         texts=await async_load_texts(hass, entry.data[CONF_LANGUAGE]),
         # A receiver saved before the setting existed in the integration uses the default.

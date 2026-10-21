@@ -46,19 +46,26 @@ from .const import (
     CONF_AREA,
     CONF_COLOR_BY_ALTITUDE,
     CONF_LANGUAGE,
+    CONF_OVERHEAD_ALTITUDE,
+    CONF_OVERHEAD_ALTITUDE_UNIT,
+    CONF_OVERHEAD_RADIUS,
     CONF_REFRESH_SECONDS,
     CONF_TRAIL_MINUTES,
     DEFAULT_ALTITUDE_UNIT,
     DEFAULT_COLOR_BY_ALTITUDE,
+    DEFAULT_OVERHEAD_ALTITUDE,
+    DEFAULT_OVERHEAD_RADIUS_KM,
     DEFAULT_RADIUS_M,
     DEFAULT_REFRESH_SECONDS,
     DEFAULT_TRAIL_MINUTES,
     DOMAIN,
     LANGUAGES,
+    MAX_OVERHEAD_RADIUS_KM,
     MAX_TRAIL_MINUTES,
     MIN_REFRESH_SECONDS,
     SUBENTRY_FEED,
 )
+from .geo import METRES_PER_FOOT
 
 DEFAULT_NAME = "ADS-B"
 
@@ -148,6 +155,9 @@ class AdsbLiveConfigFlow(ConfigFlow, domain=DOMAIN):
 class FeedFlow(ConfigSubentryFlow):
     """Adding (step "user") and changing (step "reconfigure") one feed with a single form."""
 
+    # The receiver's altitude unit when the form was first shown, which its altitude field is in until it is saved.
+    _unit: str | None = None
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self._async_step_feed("user", user_input, None)
 
@@ -165,6 +175,8 @@ class FeedFlow(ConfigSubentryFlow):
             if not errors:
                 data[CONF_REFRESH_SECONDS] = int(data[CONF_REFRESH_SECONDS])
                 data[CONF_TRAIL_MINUTES] = int(data[CONF_TRAIL_MINUTES])
+                data[CONF_OVERHEAD_ALTITUDE] = round(data[CONF_OVERHEAD_ALTITUDE])
+                data[CONF_OVERHEAD_ALTITUDE_UNIT] = self.altitude_unit()
                 if current is None:
                     return self.async_create_entry(title=title, data=data)
                 # The reason named, so the feed's own text shows rather than Home Assistant's generic one.
@@ -172,16 +184,34 @@ class FeedFlow(ConfigSubentryFlow):
 
         if user_input is not None:
             values = user_input
-        elif current is not None:
-            # The default fills in a setting added after the feed was saved, as the feed itself uses it.
-            values = {CONF_COLOR_BY_ALTITUDE: DEFAULT_COLOR_BY_ALTITUDE, CONF_NAME: current.title, **current.data}
         else:
-            values = self.defaults()
-        return self.async_show_form(step_id=step_id, data_schema=self.add_suggested_values_to_schema(FEED_SCHEMA, values), errors=errors)
+            if current is not None:
+                # The defaults fill in settings added after the feed was saved, as the feed itself uses them.
+                values = {**FEED_SETTING_DEFAULTS, CONF_NAME: current.title, **current.data}
+            else:
+                values = self.defaults()
+            values[CONF_OVERHEAD_ALTITUDE] = self.altitude_shown(values[CONF_OVERHEAD_ALTITUDE], values[CONF_OVERHEAD_ALTITUDE_UNIT])
+        schema = feed_schema(self.altitude_unit())
+        return self.async_show_form(step_id=step_id, data_schema=self.add_suggested_values_to_schema(schema, values), errors=errors)
+
+    def altitude_unit(self) -> str:
+        if self._unit is None:
+            self._unit = self._get_entry().data.get(CONF_ALTITUDE_UNIT, DEFAULT_ALTITUDE_UNIT)
+        return self._unit
+
+    def altitude_shown(self, value: float, unit: str) -> int:
+        """The stored altitude in the receiver's unit: as it was entered, or converted to the nearest 10 when the
+        receiver's unit has changed since, within what the form takes. Saving the form then stores what it shows."""
+        unit_now = self.altitude_unit()
+        if unit == unit_now:
+            return round(value)
+        converted = value * METRES_PER_FOOT if unit == "ft" else value / METRES_PER_FOOT
+        return min(int(round(converted, -1)), MAX_OVERHEAD_ALTITUDE[unit_now])
 
     def defaults(self) -> dict[str, Any]:
         """Around the receiver when its position is known, otherwise around home."""
         entry = self._get_entry()
+        unit = self.altitude_unit()
         position = entry.runtime_data.receiver.position if entry.state is ConfigEntryState.LOADED else None
         latitude, longitude = position or (self.hass.config.latitude, self.hass.config.longitude)
         return {
@@ -189,8 +219,36 @@ class FeedFlow(ConfigSubentryFlow):
             CONF_ADSB_FI: False,
             CONF_REFRESH_SECONDS: DEFAULT_REFRESH_SECONDS,
             CONF_TRAIL_MINUTES: DEFAULT_TRAIL_MINUTES,
-            CONF_COLOR_BY_ALTITUDE: DEFAULT_COLOR_BY_ALTITUDE,
+            **FEED_SETTING_DEFAULTS,
+            CONF_OVERHEAD_ALTITUDE: DEFAULT_OVERHEAD_ALTITUDE[unit],
+            CONF_OVERHEAD_ALTITUDE_UNIT: unit,
         }
+
+
+# The settings a feed saved by an earlier version may lack, with what the feed uses without them.
+FEED_SETTING_DEFAULTS = {
+    CONF_COLOR_BY_ALTITUDE: DEFAULT_COLOR_BY_ALTITUDE,
+    CONF_OVERHEAD_RADIUS: DEFAULT_OVERHEAD_RADIUS_KM,
+    CONF_OVERHEAD_ALTITUDE: DEFAULT_OVERHEAD_ALTITUDE["m"],
+    CONF_OVERHEAD_ALTITUDE_UNIT: "m",
+}
+
+# The highest overhead altitude the form takes, in each unit.
+MAX_OVERHEAD_ALTITUDE = {"m": 10_000, "ft": 33_000}
+
+
+def feed_schema(unit: str) -> vol.Schema:
+    """The feed's form, its overhead altitude in the receiver's `unit`."""
+    return FEED_SCHEMA.extend(
+        {
+            vol.Required(CONF_OVERHEAD_RADIUS): NumberSelector(
+                NumberSelectorConfig(min=0, max=MAX_OVERHEAD_RADIUS_KM, step=0.1, unit_of_measurement="km", mode=NumberSelectorMode.BOX)
+            ),
+            vol.Required(CONF_OVERHEAD_ALTITUDE): NumberSelector(
+                NumberSelectorConfig(min=0, max=MAX_OVERHEAD_ALTITUDE[unit], step=1, unit_of_measurement=unit, mode=NumberSelectorMode.BOX)
+            ),
+        }
+    )
 
 
 FEED_SCHEMA = vol.Schema(

@@ -58,13 +58,17 @@
             "adsb_fi": "Lisää ilma-alukset adsb.fi:stä",
             "refresh_seconds": "Päivitysväli",
             "trail_minutes": "Vanan pituus",
-            "color_by_altitude": "Väritä korkeuden mukaan"
+            "color_by_altitude": "Väritä korkeuden mukaan",
+            "overhead_radius_km": "Ilma-alus yläpuolella, säde",
+            "overhead_altitude": "Ilma-alus yläpuolella, maksimilentokorkeus"
           },
           "data_description": {
-            "name": "Syötteen nimi. Anturi nimetään syötteen mukaan.",
+            "name": "Syötteen nimi. Sen anturit ja tapahtumat nimetään syötteen mukaan.",
             "adsb_fi": "Ilma-alukset, joita vastaanottimesi ei kuule, adsb.fi:n yhteisöverkosta. Haettavat tiedot ovat vain henkilökohtaiseen, ei-kaupalliseen käyttöön. Sen kanssa alueen säde voi olla enintään 461 km.",
             "trail_minutes": "Kunkin ilma-aluksen vana kartalla näyttää lentoreitin asetettujen minuuttien aikana. 0 jättää vanat pois.",
-            "color_by_altitude": "Jokainen ilma-alus vanoineen korkeuden mukaisella värillä, samalla asteikolla kuin tar1090:ssä, ja selite kartalla."
+            "color_by_altitude": "Jokainen ilma-alus vanoineen korkeuden mukaisella värillä, samalla asteikolla kuin tar1090:ssä, ja selite kartalla.",
+            "overhead_radius_km": "Näin lähellä alueen keskipistettä, riittävän matalalla lentävä ilma-alus laukaisee yläpuolella-tapahtuman. 0 tarkoittaa että tapahtuma ei ole käytössä.",
+            "overhead_altitude": "Korkeus, jonka alapuolella ilma-aluksen pitää lentää, jotta se voi laukaista yläpuolella-tapahtuman. Käytettävä yksikkö on sama kuin vastaanottimella."
           }
         },
         "reconfigure": {
@@ -76,13 +80,17 @@
             "adsb_fi": "Lisää ilma-alukset adsb.fi:stä",
             "refresh_seconds": "Päivitysväli",
             "trail_minutes": "Vanan pituus",
-            "color_by_altitude": "Väritä korkeuden mukaan"
+            "color_by_altitude": "Väritä korkeuden mukaan",
+            "overhead_radius_km": "Ilma-alus yläpuolella, säde",
+            "overhead_altitude": "Ilma-alus yläpuolella, maksimilentokorkeus"
           },
           "data_description": {
-            "name": "Syötteen nimi. Anturi nimetään syötteen mukaan.",
+            "name": "Syötteen nimi. Sen anturit ja tapahtumat nimetään syötteen mukaan.",
             "adsb_fi": "Ilma-alukset, joita vastaanottimesi ei kuule, adsb.fi:n yhteisöverkosta. Haettavat tiedot ovat vain henkilökohtaiseen, ei-kaupalliseen käyttöön. Sen kanssa alueen säde voi olla enintään 461 km.",
             "trail_minutes": "Kunkin ilma-aluksen vana kartalla näyttää lentoreitin asetettujen minuuttien aikana. 0 jättää vanat pois.",
-            "color_by_altitude": "Jokainen ilma-alus vanoineen korkeuden mukaisella värillä, samalla asteikolla kuin tar1090:ssä, ja selite kartalla."
+            "color_by_altitude": "Jokainen ilma-alus vanoineen korkeuden mukaisella värillä, samalla asteikolla kuin tar1090:ssä, ja selite kartalla.",
+            "overhead_radius_km": "Näin lähellä alueen keskipistettä, riittävän matalalla lentävä ilma-alus laukaisee yläpuolella-tapahtuman. 0 tarkoittaa että tapahtuma ei ole käytössä.",
+            "overhead_altitude": "Korkeus, jonka alapuolella ilma-aluksen pitää lentää, jotta se voi laukaista yläpuolella-tapahtuman. Käytettävä yksikkö on sama kuin vastaanottimella."
           }
         }
       },
@@ -129,7 +137,45 @@
       },
       "noise": {
         "name": "Kohina"
+      },
+      "nearest_aircraft": {
+        "name": "Lähin ilma-alus"
       }
+    },
+    "event": {
+      "aircraft_events": {
+        "name": "Ilma-alustapahtumat",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "emergency": "Hätäkoodi",
+              "military": "Sotilasilma-alus",
+              "overhead": "Yläpuolella"
+            }
+          }
+        }
+      }
+    }
+  },
+  "services": {
+    "get_aircraft_details": {
+      "name": "Hae ilma-aluksen tiedot",
+      "description": "Palauttaa ilma-aluksen reitin ja kuvan karttasyötteen tietoriveinä. Karttakortti kutsuu tätä, kun ilma-alus avataan.",
+      "fields": {
+        "feed": {
+          "name": "Syöte",
+          "description": "Syötteen tunniste, jonka syöte antaa jokaisen ilma-aluksen tietotoiminnossa."
+        },
+        "hex": {
+          "name": "Osoite",
+          "description": "Ilma-aluksen ICAO-osoite, esimerkiksi 4ca8e1."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_feed": {
+      "message": "Tällä tunnisteella ei ole asetettu ADS-B Live -syötettä."
     }
   }
 }
