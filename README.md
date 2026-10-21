@@ -165,7 +165,7 @@ The receiver's data is your own. The registrations, types, operators and militar
 database your receiver uses, if it has one turned on (`TAR1090_ENABLE_AC_DB` in ultrafeeder).
 
 [adsb.fi](https://adsb.fi/)'s open data is for personal, non-commercial use only, under
-[its terms](https://github.com/adsbfi/opendata). A feed that uses it credits adsb.fi on the map. Its requests carry a
+[its terms](https://github.com/adsbfi/opendata). A feed that uses it credits adsb.fi on the map, with a link to its site. Its requests carry a
 User-Agent with the integration's name, version and the address of this repository. It contains no personal
 information. The area's centre is sent rounded to about a kilometre, so the query doesn't tell adsb.fi where your home
 is, and the query reaches one nautical mile beyond the area to make up for it.

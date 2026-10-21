@@ -9,6 +9,8 @@ MAP_FEED_VERSION: Final = 1
 
 # Credit on the map when a feed uses adsb.fi, as its terms ask.
 ADSB_FI_ATTRIBUTION: Final = "adsb.fi"
+# adsb.fi's terms ask for a link to its home page with the credit.
+ADSB_FI_ATTRIBUTION_URL: Final = "https://adsb.fi/"
 
 # Languages for the texts the integration writes into feeds. Each needs a texts/<code>.json file.
 LANGUAGES: Final = ["fi", "en"]

@@ -17,7 +17,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import without_login
 from .colors import legend
-from .const import ADSB_FI_ATTRIBUTION, DOMAIN, MAP_FEED_VERSION
+from .const import ADSB_FI_ATTRIBUTION, ADSB_FI_ATTRIBUTION_URL, DOMAIN, MAP_FEED_VERSION
 from .coordinator import AdsbConfigEntry, FeedCoordinator, StatsCoordinator
 
 # The keys are those of health.receiver_health().
@@ -146,8 +146,11 @@ class MapFeedSensor(CoordinatorEntity[FeedCoordinator], SensorEntity):
                 ],
                 "default": "distance",
                 "count": texts("aircraft_count"),
+                "count_one": texts("aircraft_count_one"),
             },
         }
+        if self.coordinator.feed_config.adsb_fi:
+            attributes["attribution_url"] = ADSB_FI_ATTRIBUTION_URL
         data = self.coordinator.data
         if self.coordinator.feed_config.color_by_altitude:
             attributes["legend"] = legend(runtime.altitude_unit, texts, data.unknown_altitude if data else False)

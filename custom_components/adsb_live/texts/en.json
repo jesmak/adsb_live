@@ -22,6 +22,7 @@
   "sort_distance": "Distance",
   "sort_altitude": "Altitude",
   "aircraft_count": "aircraft",
+  "aircraft_count_one": "aircraft",
   "legend_ground": "On the ground",
   "thousands_separator": ",",
   "decimal_separator": ".",

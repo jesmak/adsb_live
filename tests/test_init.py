@@ -71,6 +71,7 @@ async def test_a_feed_has_the_receivers_aircraft_in_its_area(hass: HomeAssistant
     assert feed.attributes["feed_type"] == "air"
     assert feed.attributes["area"] == {"center": [61.4978, 23.761], "radius_km": 100.0}
     assert "attribution" not in feed.attributes, "the receiver's own data needs no credit"
+    assert "attribution_url" not in feed.attributes
     assert feed.attributes["list"]["default"] == "distance"
     ids = [feature["id"] for feature in feed.attributes["geojson"]["features"]]
     assert ids == ["aircraft:461f00", "aircraft:46a1b2", "aircraft:462000"], "one position each, so no trails yet"
@@ -89,6 +90,7 @@ async def test_adsb_fi_adds_what_the_receiver_doesnt_hear(hass: HomeAssistant, r
     feed = hass.states.get("sensor.aircraft_near_tampere")
     assert feed.state == "4"
     assert feed.attributes["attribution"] == "adsb.fi"
+    assert feed.attributes["attribution_url"] == "https://adsb.fi/", "adsb.fi's terms ask for a link"
     features = {feature["id"]: feature for feature in feed.attributes["geojson"]["features"]}
     assert features["aircraft:4ca123"]["properties"]["kind"] == "air.heavy"
     sources = {row["value"] for row in features["aircraft:46a1b2"]["properties"]["details"] if row["label"] == "Source"}

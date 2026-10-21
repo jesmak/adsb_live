@@ -22,6 +22,7 @@
   "sort_distance": "Etäisyys",
   "sort_altitude": "Korkeus",
   "aircraft_count": "ilma-alusta",
+  "aircraft_count_one": "ilma-alus",
   "legend_ground": "Maassa",
   "thousands_separator": " ",
   "decimal_separator": ",",

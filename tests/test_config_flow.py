@@ -105,6 +105,7 @@ async def test_reconfiguring_a_loaded_receiver_reloads_it_once_with_the_new_sett
     assert [item["label"] for item in feed.attributes["legend"]][:3] == ["Maassa", "1\u00a0000 ft", "3\u00a0000 ft"]
     assert [key["label"] for key in feed.attributes["list"]["sort"]] == ["Etäisyys", "Korkeus"]
     assert feed.attributes["list"]["count"] == "ilma-alusta"
+    assert feed.attributes["list"]["count_one"] == "ilma-alus"
 
 
 async def test_reconfiguring_a_disabled_receiver_keeps_it_unloaded(hass: HomeAssistant, receiver_api: AiohttpClientMocker) -> None:
@@ -194,6 +195,7 @@ async def test_reconfiguring_a_feed_shows_and_keeps_its_settings(hass: HomeAssis
 
     feed = hass.states.get("sensor.aircraft_near_tampere")
     assert "attribution" not in feed.attributes, "adsb.fi off after the change"
+    assert "attribution_url" not in feed.attributes
     assert "legend" in feed.attributes, "colours on after the change"
 
 
