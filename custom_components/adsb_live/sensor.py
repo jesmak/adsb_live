@@ -24,6 +24,12 @@ from .coordinator import AdsbConfigEntry, FeedCoordinator, StatsCoordinator
 # The keys are those of health.receiver_health().
 HEALTH_SENSORS = (
     SensorEntityDescription(
+        key="aircraft_tracked",
+        translation_key="aircraft_tracked",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:airplane-search",
+    ),
+    SensorEntityDescription(
         key="aircraft_with_position",
         translation_key="aircraft_with_position",
         state_class=SensorStateClass.MEASUREMENT,

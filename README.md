@@ -23,6 +23,7 @@ Show the feeds on a map with [map-feed-card](https://github.com/jesmak/map-feed-
 heading the way it flies, with its trail, and shows its details beside the map or in a list, with its route and a
 photo when it is opened. The feed format is
 documented in [map-feed-format.md](https://github.com/jesmak/map-feed-card/blob/main/docs/map-feed-format.md).
+The receiver's own health has a card of its own, [adsb-receiver-card](https://github.com/jesmak/adsb-receiver-card).
 
 A receiver hears only what its antenna can see. A feed can add the aircraft [adsb.fi](https://adsb.fi/) knows around
 the same area, from the receivers of its community, so the map shows the traffic your own antenna misses.
@@ -97,6 +98,7 @@ Every receiver gets these sensors, read from readsb's statistics once a minute.
 
 | Sensor                   | Unit  | Description                                                                                         |
 | ------------------------ | ----- | --------------------------------------------------------------------------------------------------- |
+| Aircraft tracked         |       | Aircraft the receiver currently hears, with or without a position                                   |
 | Aircraft with a position |       | Aircraft the receiver currently has a position for                                                  |
 | Messages per second      | msg/s | Valid messages decoded in the last minute                                                           |
 | Positions per minute     | /min  | Positions decoded in the last minute                                                                |

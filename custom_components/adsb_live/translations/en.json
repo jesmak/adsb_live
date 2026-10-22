@@ -120,6 +120,9 @@
   },
   "entity": {
     "sensor": {
+      "aircraft_tracked": {
+        "name": "Aircraft tracked"
+      },
       "aircraft_with_position": {
         "name": "Aircraft with a position"
       },

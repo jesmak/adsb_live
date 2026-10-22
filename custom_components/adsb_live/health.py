@@ -37,8 +37,11 @@ def receiver_health(stats: Mapping[str, Any]) -> dict[str, float | None]:
     positions = number(minute.get("position_count_total"))
     max_distance_m = number(quarter.get("max_distance"))
     with_position = number(stats.get("aircraft_with_pos"))
+    without_position = number(stats.get("aircraft_without_pos"))
+    tracked = with_position + without_position if with_position is not None and without_position is not None else None
 
     return {
+        "aircraft_tracked": int(tracked) if tracked is not None else None,
         "aircraft_with_position": int(with_position) if with_position is not None else None,
         "messages_per_second": round(messages / seconds, 1) if messages is not None and seconds else None,
         "positions_per_minute": round(positions / seconds * 60) if positions is not None and seconds else None,

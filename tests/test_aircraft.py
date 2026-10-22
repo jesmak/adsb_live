@@ -221,6 +221,7 @@ def test_trails_follow_an_aircraft_and_end_with_its_minutes() -> None:
 
 def test_receiver_health_from_its_statistics() -> None:
     assert receiver_health(stats()) == {
+        "aircraft_tracked": 4,
         "aircraft_with_position": 3,
         "messages_per_second": 25.1,
         "positions_per_minute": 48,
@@ -228,6 +229,38 @@ def test_receiver_health_from_its_statistics() -> None:
         "signal": -21.4,
         "noise": -38.2,
     }
+
+
+MISSING = object()
+
+
+@pytest.mark.parametrize(
+    ("with_pos", "without_pos", "tracked"),
+    [
+        (3, 1, 4),
+        (0, 0, 0),
+        (3.0, 1.0, 4),
+        (3, MISSING, None),
+        (MISSING, 1, None),
+        (MISSING, MISSING, None),
+        (3, None, None),
+        (None, 1, None),
+        (3, "1", None),
+        ("3", 1, None),
+    ],
+)
+def test_aircraft_tracked_is_unknown_without_both_counts(with_pos: Any, without_pos: Any, tracked: int | None) -> None:
+    """readsb counts the aircraft with a position and those without apart, and a total from one of them would be too low.
+
+    A count that is missing, null or not a number leaves the total unknown, and the other values as they were.
+    """
+    counts = {"aircraft_with_pos": with_pos, "aircraft_without_pos": without_pos}
+    partial = {key: value for key, value in stats().items() if key not in counts}
+    partial.update({key: value for key, value in counts.items() if value is not MISSING})
+    with_position = with_pos if isinstance(with_pos, (int, float)) and not isinstance(with_pos, bool) else None
+    expected = {**receiver_health(stats()), "aircraft_tracked": tracked}
+    expected["aircraft_with_position"] = int(with_position) if with_position is not None else None
+    assert receiver_health(partial) == expected
 
 
 def test_a_networked_receiver_has_no_signal_or_noise() -> None:

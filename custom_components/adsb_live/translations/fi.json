@@ -120,6 +120,9 @@
   },
   "entity": {
     "sensor": {
+      "aircraft_tracked": {
+        "name": "Seurattuja ilma-aluksia"
+      },
       "aircraft_with_position": {
         "name": "Sijainnillisia ilma-aluksia"
       },
