@@ -1,6 +1,7 @@
 {
   "resources": [
-    "../../hass-cards/map-feed-card/dist/map-feed-card.js"
+    "../../hass-cards/map-feed-card/dist/map-feed-card.js",
+    "https://raw.githubusercontent.com/jesmak/adsb-receiver-card/main/dist/adsb-receiver-card.js"
   ],
   "clock": "2026-06-12T14:20:00+03:00",
   "states": {
@@ -892,6 +893,177 @@
         "device_class": "signal_strength",
         "state_class": "measurement"
       }
+    },
+    "sensor.ads_b_aircraft_tracked": {
+      "state": "9",
+      "attributes": {
+        "friendly_name": "ADS-B Aircraft tracked",
+        "state_class": "measurement"
+      }
+    },
+    "binary_sensor.fr24feed_link": {
+      "state": "on",
+      "attributes": {
+        "friendly_name": "fr24feed link",
+        "device_class": "connectivity"
+      }
+    },
+    "sensor.fr24feed_reported": {
+      "state": "7",
+      "attributes": {
+        "friendly_name": "fr24feed reported",
+        "unit_of_measurement": "aircraft"
+      }
+    }
+  },
+  "entities": {
+    "sensor.ads_b_aircraft_tracked": {
+      "device_id": "receiver",
+      "platform": "adsb_live",
+      "translation_key": "aircraft_tracked"
+    },
+    "sensor.ads_b_aircraft_with_a_position": {
+      "device_id": "receiver",
+      "platform": "adsb_live",
+      "translation_key": "aircraft_with_position"
+    },
+    "sensor.ads_b_messages_per_second": {
+      "device_id": "receiver",
+      "platform": "adsb_live",
+      "translation_key": "messages_per_second",
+      "display_precision": 1
+    },
+    "sensor.ads_b_positions_per_minute": {
+      "device_id": "receiver",
+      "platform": "adsb_live",
+      "translation_key": "positions_per_minute"
+    },
+    "sensor.ads_b_longest_range": {
+      "device_id": "receiver",
+      "platform": "adsb_live",
+      "translation_key": "max_range",
+      "display_precision": 0
+    },
+    "sensor.ads_b_signal": {
+      "device_id": "receiver",
+      "platform": "adsb_live",
+      "translation_key": "signal",
+      "display_precision": 1
+    },
+    "sensor.ads_b_noise": {
+      "device_id": "receiver",
+      "platform": "adsb_live",
+      "translation_key": "noise",
+      "display_precision": 1
+    }
+  },
+  "devices": {
+    "receiver": {
+      "name": "ADS-B",
+      "manufacturer": "readsb",
+      "sw_version": "3.16.17"
+    }
+  },
+  "statistics": {
+    "sensor.ads_b_aircraft_tracked": {
+      "mean": [
+        [
+          "2026-06-11T11:00:00+00:00",
+          8.4
+        ],
+        [
+          "2026-06-11T12:00:00+00:00",
+          9.1
+        ],
+        [
+          "2026-06-11T13:00:00+00:00",
+          9.6
+        ],
+        [
+          "2026-06-11T14:00:00+00:00",
+          8.8
+        ],
+        [
+          "2026-06-11T15:00:00+00:00",
+          8.1
+        ],
+        [
+          "2026-06-11T16:00:00+00:00",
+          7.5
+        ],
+        [
+          "2026-06-11T17:00:00+00:00",
+          6.2
+        ],
+        [
+          "2026-06-11T18:00:00+00:00",
+          4.9
+        ],
+        [
+          "2026-06-11T19:00:00+00:00",
+          3.6
+        ],
+        [
+          "2026-06-11T20:00:00+00:00",
+          2.4
+        ],
+        [
+          "2026-06-11T21:00:00+00:00",
+          1.5
+        ],
+        [
+          "2026-06-11T22:00:00+00:00",
+          0.9
+        ],
+        [
+          "2026-06-11T23:00:00+00:00",
+          0.6
+        ],
+        [
+          "2026-06-12T00:00:00+00:00",
+          0.8
+        ],
+        [
+          "2026-06-12T01:00:00+00:00",
+          1.7
+        ],
+        [
+          "2026-06-12T02:00:00+00:00",
+          3.1
+        ],
+        [
+          "2026-06-12T03:00:00+00:00",
+          4.6
+        ],
+        [
+          "2026-06-12T04:00:00+00:00",
+          5.8
+        ],
+        [
+          "2026-06-12T05:00:00+00:00",
+          6.9
+        ],
+        [
+          "2026-06-12T06:00:00+00:00",
+          7.6
+        ],
+        [
+          "2026-06-12T07:00:00+00:00",
+          8.2
+        ],
+        [
+          "2026-06-12T08:00:00+00:00",
+          8.7
+        ],
+        [
+          "2026-06-12T09:00:00+00:00",
+          9.3
+        ],
+        [
+          "2026-06-12T10:00:00+00:00",
+          8.9
+        ]
+      ]
     }
   },
   "shots": [
@@ -931,58 +1103,15 @@
                 "icon": "mdi:airplane-marker"
               },
               {
-                "type": "tile",
-                "entity": "sensor.ads_b_messages_per_second",
-                "name": "Messages",
-                "icon": "mdi:message-processing",
-                "grid_options": {
-                  "columns": 6
-                }
-              },
-              {
-                "type": "tile",
-                "entity": "sensor.ads_b_positions_per_minute",
-                "name": "Positions",
-                "icon": "mdi:crosshairs-gps",
-                "grid_options": {
-                  "columns": 6
-                }
-              },
-              {
-                "type": "tile",
-                "entity": "sensor.ads_b_aircraft_with_a_position",
-                "name": "With a position",
-                "icon": "mdi:airplane",
-                "grid_options": {
-                  "columns": 6
-                }
-              },
-              {
-                "type": "tile",
-                "entity": "sensor.ads_b_longest_range",
-                "name": "Longest range",
-                "icon": "mdi:radar",
-                "grid_options": {
-                  "columns": 6
-                }
-              },
-              {
-                "type": "tile",
-                "entity": "sensor.ads_b_signal",
-                "name": "Signal",
-                "icon": "mdi:signal",
-                "grid_options": {
-                  "columns": 6
-                }
-              },
-              {
-                "type": "tile",
-                "entity": "sensor.ads_b_noise",
-                "name": "Noise",
-                "icon": "mdi:waveform",
-                "grid_options": {
-                  "columns": 6
-                }
+                "type": "custom:adsb-receiver-card",
+                "device": "receiver",
+                "feeders": [
+                  {
+                    "entity": "binary_sensor.fr24feed_link",
+                    "name": "Flightradar24",
+                    "detail": "sensor.fr24feed_reported"
+                  }
+                ]
               }
             ]
           }
