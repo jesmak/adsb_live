@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.adsb_live.api import ADSB_FI_API, without_login
+from custom_components.adsb_live.api import ADSB_FI_API, AdsbNotFound, without_login
 from custom_components.adsb_live.const import DOMAIN
 
 RECEIVER_URL = "http://receiver.example:8080"
@@ -28,6 +28,18 @@ TEST_SPACING_SECONDS = 0.05
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     """Lets Home Assistant load integrations from custom_components/."""
+
+
+@pytest.fixture(autouse=True)
+def no_type_table(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A receiver without tar1090's table of aircraft types. Only test_types.py reads it, through the mocked HTTP API."""
+    if request.module.__name__.endswith("test_types"):
+        return
+
+    async def no_table(self: object, url: str) -> dict[str, Any]:
+        raise AdsbNotFound("No tar1090 in the tests")
+
+    monkeypatch.setattr("custom_components.adsb_live.api.ReceiverClient.type_table", no_table)
 
 
 @pytest.fixture(autouse=True)

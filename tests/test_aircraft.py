@@ -8,7 +8,18 @@ from typing import Any
 
 import pytest
 
-from custom_components.adsb_live.aircraft import Aircraft, Trails, build_features, in_area, measure, merge, notices, parse_aircraft
+from custom_components.adsb_live.aircraft import (
+    Aircraft,
+    Trails,
+    build_features,
+    in_area,
+    measure,
+    merge,
+    notices,
+    parse_aircraft,
+    type_kind,
+    type_kinds,
+)
 from custom_components.adsb_live.api import normalize_url, without_login
 from custom_components.adsb_live.colors import GROUND_COLOR, UNKNOWN_COLOR, altitude_color, legend
 from custom_components.adsb_live.const import LANGUAGES
@@ -28,8 +39,10 @@ def plane(hex_code: str, position_time: float, longitude: float, latitude: float
     return Aircraft(hex_code, latitude, longitude, position_time, "adsb", data)
 
 
-def features_of(aircraft: list[Aircraft], texts: Any = ENGLISH, unit: str = "m", colors: bool = False) -> list[dict[str, Any]]:
-    return build_features(measure(aircraft, RECEIVER_POSITION), None, texts, unit, colors, FEED_ID)
+def features_of(
+    aircraft: list[Aircraft], texts: Any = ENGLISH, unit: str = "m", colors: bool = False, types: dict[str, str] | None = None
+) -> list[dict[str, Any]]:
+    return build_features(measure(aircraft, RECEIVER_POSITION), None, texts, unit, colors, FEED_ID, types or {})
 
 
 def test_only_live_positions_of_aircraft_are_read() -> None:
@@ -146,6 +159,103 @@ def test_an_aircraft_without_callsign_or_registration_is_named_by_its_address() 
     assert features_of([plane("4ca124", 0, 24.0)])[0]["properties"]["kind"] == "air.other"
 
 
+# The kind is the category the aircraft transmits. Only one that transmits none, or A0 for no information, gets the kind
+# its type's class gives in tar1090's table, and without the type in the table it stays other.
+TYPES = {"A320": "air.large", "E120": "air.small"}
+
+
+@pytest.mark.parametrize(
+    ("category", "type_code", "expected"),
+    [
+        ("A3", "E120", "air.large"),
+        ("A1", None, "air.light"),
+        ("B6", "A320", "air.drone"),
+        ("A0", "A320", "air.large"),
+        (None, "E120", "air.small"),
+        ("", "a320", "air.large"),
+        ("A0", "ZZZZ", "air.other"),
+        ("A0", None, "air.other"),
+        (None, None, "air.other"),
+        ("B3", "A320", "air.other"),
+    ],
+)
+def test_the_kind_falls_back_to_the_type_only_without_a_category(category: str | None, type_code: str | None, expected: str) -> None:
+    data = {key: value for key, value in (("category", category), ("t", type_code)) if value is not None}
+    assert features_of([plane("4ca123", 0, 24.0, **data)], types=TYPES)[0]["properties"]["kind"] == expected
+
+
+# A type's class from ICAO's description code and wake turbulence category, as tar1090's table writes them: rotorcraft,
+# balloons and drones by their kind of aircraft, then heavy by wake, medium jets large and other medium aircraft small, and
+# light wake light. What the code can't tell, such as a tower (T0-), a ground vehicle (V0-) or a bare L0-, is none.
+@pytest.mark.parametrize(
+    ("code", "wake", "expected"),
+    [
+        ("H2T", "L", "air.rotorcraft"),
+        ("H1P", "L", "air.rotorcraft"),
+        ("G1P", "L", "air.rotorcraft"),
+        # Tiltrotors, as the V-22 and the BA-609, and an electric one, the Joby JAS-4.
+        ("R2T", "M", "air.rotorcraft"),
+        ("R6E", "L", "air.rotorcraft"),
+        # Balloons and airships (BALL, SHIP), and drones (DRON).
+        ("B0-", "-", "air.balloon"),
+        ("D0-", "-", "air.drone"),
+        # Rotorcraft the table gives no wake: an unnamed helicopter (UHEL) or gyrocopter (GYRO).
+        ("H0-", "-", "air.rotorcraft"),
+        # A helicopter is a rotorcraft whatever its wake, and a medium jet large whatever it lands on (an amphibian).
+        ("H2T", "M", "air.rotorcraft"),
+        ("A2J", "M", "air.large"),
+        ("G0-", "-", "air.rotorcraft"),
+        # A seaplane is placed like a landplane.
+        ("S2T", "M", "air.small"),
+        ("S1P", "L", "air.light"),
+        ("T0-", "-", None),
+        ("V0-", "-", None),
+        ("P0-", "-", None),
+        ("L0-", "-", None),
+        ("L2J", "H", "air.heavy"),
+        ("L4J", "J", "air.heavy"),
+        ("L4T", "H", "air.heavy"),
+        ("L2J", "M", "air.large"),
+        ("L1J", "M", "air.large"),
+        ("L2T", "M", "air.small"),
+        ("L2P", "M", "air.small"),
+        ("L1P", "L", "air.light"),
+        ("L1J", "L", "air.light"),
+        ("A1P", "L", "air.light"),
+        ("-0-", "-", None),
+        ("L2J", "-", None),
+        ("", "M", None),
+    ],
+)
+def test_a_types_class_gives_its_kind(code: str, wake: str, expected: str | None) -> None:
+    assert type_kind(code, wake) == expected
+
+
+def test_the_type_table_keeps_the_types_that_get_a_kind() -> None:
+    table = {
+        "A320": ["AIRBUS A-320", "L2J", "M"],
+        "R44": ["ROBINSON R-44 Raven", "H1P", "L"],
+        "BALL": ["", "B0-", "-"],
+        # A glider, an ultralight and a paraglider have no description their code tells, only their designators.
+        "GLID": ["Glider", "L0-", "-"],
+        "ULAC": ["", "L0-", "-"],
+        "PARA": ["", "P0-", "-"],
+        "TWR": ["", "T0-", "-"],
+        "ZZZZ": ["", "-0-", "-"],
+        "BAD1": "not a list",
+        "BAD2": ["too short"],
+        "BAD3": ["NUMBERS", 2, 3],
+    }
+    assert type_kinds(table) == {
+        "A320": "air.large",
+        "R44": "air.rotorcraft",
+        "BALL": "air.balloon",
+        "GLID": "air.glider",
+        "ULAC": "air.light",
+        "PARA": "air.light",
+    }
+
+
 def test_an_address_that_isnt_icaos_isnt_called_one() -> None:
     properties = features_of([plane("~2b0c4f", 0, 24.0)])[0]["properties"]
     assert properties["name"] == "~2B0C4F"
@@ -170,7 +280,7 @@ def test_colours_follow_the_altitude_on_tar1090s_scale() -> None:
     aircraft = [plane("a", 0, 24.0, alt_baro=12000), plane("b", 0, 24.1, alt_baro="ground"), plane("c", 0, 24.2)]
     trails = Trails()
     trails.update([plane("a", -15, 23.99, alt_baro=12000), aircraft[0]], now=0, minutes=5)
-    features = build_features(measure(aircraft, RECEIVER_POSITION), trails, ENGLISH, "m", True, FEED_ID)
+    features = build_features(measure(aircraft, RECEIVER_POSITION), trails, ENGLISH, "m", True, FEED_ID, {})
     colors = {feature["id"]: feature["properties"].get("color") for feature in features}
     assert colors == {"aircraft:a": "#0cc35a", "aircraft:a/trail": None, "aircraft:b": GROUND_COLOR, "aircraft:c": UNKNOWN_COLOR}, (
         "a trail takes its aircraft's colour through `point`"
@@ -213,7 +323,7 @@ def test_trails_follow_an_aircraft_and_end_with_its_minutes() -> None:
     trails.update([plane("a", 1030, 24.02)], now=1030, minutes=5)
     assert trails.line("a") == [[24.0, 61.5], [24.02, 61.5]]
 
-    features = build_features(measure([plane("a", 1030, 24.02)], RECEIVER_POSITION), trails, ENGLISH, "m", False, FEED_ID)
+    features = build_features(measure([plane("a", 1030, 24.02)], RECEIVER_POSITION), trails, ENGLISH, "m", False, FEED_ID, {})
     assert features[1] == {
         "type": "Feature",
         "id": "aircraft:a/trail",

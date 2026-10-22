@@ -59,6 +59,61 @@ KINDS = {
     "B6": "air.drone",
 }
 OTHER_KIND = "air.other"
+# Categories that say nothing of the aircraft: none at all, or A0 for no information. Those take their type's kind.
+NO_CATEGORY = ("", "A0")
+# Types tar1090's table tells only by their designator, with no description its code places: the glider, and the
+# ultralight and paraglider, light as the category B4 makes them.
+DESIGNATOR_KINDS = {"GLID": "air.glider", "ULAC": "air.light", "PARA": "air.light"}
+
+
+def aircraft_kind(plane: Aircraft, types: Mapping[str, str]) -> str:
+    """The kind its category gives, or for one transmitting none, the kind its type has in `types` (see type_kinds)."""
+    category = str(plane.data.get("category") or "")
+    if category in NO_CATEGORY:
+        return types.get(str(plane.data.get("t") or "").upper(), OTHER_KIND)
+    return KINDS.get(category, OTHER_KIND)
+
+
+def type_kind(code: str, wake: str) -> str | None:
+    """A type's kind from the description code (L2J: a landplane with two jets) and wake category in tar1090's table.
+
+    The table marks a helicopter H, a gyrocopter G, a tiltrotor R, a balloon or airship B and a drone D. The wake
+    categories match the emitter categories' weights: light under 7 t (A1), heavy over 136 t (A5). Medium covers both
+    small and large (A2 and A3), told apart by the engines, as the table gives no weights. None for a description the
+    code can't place, such as a tower's (T0-).
+    """
+    if code[:1] in ("H", "G", "R"):
+        return "air.rotorcraft"
+    if code[:1] == "B":
+        return "air.balloon"
+    if code[:1] == "D":
+        return "air.drone"
+    if not code:
+        return None
+    if wake in ("H", "J"):
+        return "air.heavy"
+    if wake == "M":
+        return "air.large" if code.endswith("J") else "air.small"
+    if wake == "L":
+        return "air.light"
+    return None
+
+
+def type_kinds(table: Mapping[str, Any]) -> dict[str, str]:
+    """Each type's kind from tar1090's icao_aircraft_types2.js, {"A320": ["AIRBUS A-320", "L2J", "M"], ...}.
+
+    Types that get no kind, by their designator (see DESIGNATOR_KINDS) or their class, and entries not of that shape,
+    are left out.
+    """
+    kinds: dict[str, str] = {}
+    for designator, entry in table.items():
+        if not isinstance(entry, list) or len(entry) < 3 or not isinstance(entry[1], str) or not isinstance(entry[2], str):
+            continue
+        code = str(designator).upper()
+        if kind := DESIGNATOR_KINDS.get(code) or type_kind(entry[1], entry[2]):
+            kinds[code] = kind
+    return kinds
+
 
 EMERGENCY_SQUAWKS = ("7500", "7600", "7700")
 # dbFlags bit for a military aircraft in the aircraft database.
@@ -105,10 +160,6 @@ class Aircraft:
     @property
     def feature_id(self) -> str:
         return f"aircraft:{self.hex}"
-
-    @property
-    def kind(self) -> str:
-        return KINDS.get(str(self.data.get("category") or ""), OTHER_KIND)
 
     @property
     def callsign(self) -> str:
@@ -371,28 +422,33 @@ def build_features(
     unit: str,
     color_by_altitude: bool,
     feed_id: str,
+    types: Mapping[str, str],
 ) -> list[dict[str, Any]]:
     """Point features for the measured aircraft (see measure), in their order, each followed by its trail when it has one.
 
     Altitudes and vertical rates are written in `unit`, "m" or "ft". With `color_by_altitude`, each point has its
-    altitude's colour, which its trail takes too. Each point's details on tap name the feed by `feed_id`.
+    altitude's colour, which its trail takes too. Each point's details on tap name the feed by `feed_id`. An aircraft
+    transmitting no category takes its type's kind from `types`.
     """
     features: list[dict[str, Any]] = []
     for distance_km, plane in measured:
-        features.append(point_feature(plane, distance_km, texts, unit, color_by_altitude, feed_id))
+        kind = aircraft_kind(plane, types)
+        features.append(point_feature(plane, distance_km, texts, unit, color_by_altitude, feed_id, kind))
         if trails is not None and (line := trails.line(plane.hex)):
             features.append(
                 {
                     "type": "Feature",
                     "id": f"{plane.feature_id}/trail",
                     "geometry": {"type": "LineString", "coordinates": line},
-                    "properties": {"kind": plane.kind, "point": plane.feature_id},
+                    "properties": {"kind": kind, "point": plane.feature_id},
                 }
             )
     return features
 
 
-def point_feature(plane: Aircraft, distance_km: float, texts: Texts, unit: str, color_by_altitude: bool, feed_id: str) -> dict[str, Any]:
+def point_feature(
+    plane: Aircraft, distance_km: float, texts: Texts, unit: str, color_by_altitude: bool, feed_id: str, kind: str
+) -> dict[str, Any]:
     data = plane.data
     name = aircraft_name(plane)
     speed = number(data.get("gs"))
@@ -402,7 +458,7 @@ def point_feature(plane: Aircraft, distance_km: float, texts: Texts, unit: str, 
     address = plane.hex.upper() if plane.hex.startswith("~") else f"ICAO {plane.hex.upper()}"
     properties: dict[str, Any] = {
         "name": name,
-        "kind": plane.kind,
+        "kind": kind,
         "updated": dt_util.utc_from_timestamp(plane.position_time).isoformat(timespec="seconds"),
         "heading": heading(plane),
         "stationary": True if plane.on_ground else None,

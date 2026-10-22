@@ -129,7 +129,11 @@ its type's name and operator from the aircraft database. Its details show:
 Altitudes and vertical rates are in the receiver's altitude unit. An emergency squawk (7500, 7600 or 7700) and a
 military aircraft get a notice in the details. The kinds are `air.light`, `air.small`, `air.large`, `air.heavy`,
 `air.high_performance`, `air.rotorcraft`, `air.glider`, `air.balloon`, `air.drone` and `air.other`, from the category
-the aircraft transmits. The list can be sorted by distance or altitude.
+the aircraft transmits. One that transmits none, or A0 for no information, as is common for aircraft found by MLAT,
+takes its type's kind from the table of aircraft types tar1090 serves on the receiver. A helicopter, gyrocopter or
+tiltrotor is a rotorcraft, a balloon or airship a balloon, a drone a drone, a glider a glider, and an ultralight or
+paraglider light. Otherwise a heavy wake category is heavy, a medium one large for jets and small for others, and a
+light one light. Without tar1090 such an aircraft stays `air.other`. The list can be sorted by distance or altitude.
 
 Opening an aircraft on the map fetches its route and a photo, which the card shows in its details (see
 [Actions](#actions)). Nothing is fetched for an aircraft nobody opens.

@@ -20,7 +20,7 @@ from homeassistant.loader import async_get_integration
 
 from .api import ADSB_FI_CLIENT, DETAILS_CLIENT, AdsbError, AdsbFiClient, DetailsClient, ReceiverClient
 from .const import CONF_ALTITUDE_UNIT, CONF_LANGUAGE, DEFAULT_ALTITUDE_UNIT, DOMAIN
-from .coordinator import AdsbConfigEntry, AdsbRuntimeData, FeedCoordinator, Receiver, ReceiverAircraft, StatsCoordinator
+from .coordinator import AdsbConfigEntry, AdsbRuntimeData, FeedCoordinator, Receiver, ReceiverAircraft, StatsCoordinator, TypeKinds
 from .services import async_setup_services
 from .texts import async_load_texts
 
@@ -61,6 +61,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
         altitude_unit=altitude_unit,
         stats=StatsCoordinator(hass, entry, client, url),
         heard=ReceiverAircraft(client, url, altitude_unit),
+        types=TypeKinds(client, url),
     )
     for subentry in entry.subentries.values():
         entry.runtime_data.feeds[subentry.subentry_id] = FeedCoordinator(hass, entry, subentry)

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -22,6 +23,8 @@ from .const import DOMAIN
 from .geo import KM_PER_NM
 
 ADSB_FI_API = "https://opendata.adsb.fi/api/v3"
+# The folder of tar1090's database, as its page names it: databaseFolder = "db-3.14.1722".
+DATABASE_FOLDER = re.compile(r'databaseFolder\s*=\s*"([\w.-]+)"')
 # The largest radius adsb.fi's position query accepts.
 ADSB_FI_MAX_RADIUS_NM = 250
 # The query's centre is rounded, so the query reaches this much farther than the feed's area.
@@ -72,6 +75,21 @@ async def _get_json(
     name: str | None = None,
 ) -> dict[str, Any]:
     """The JSON object at `url`. Errors name the source by `name` when given, and by the URL otherwise."""
+    data = await _get(session, url, headers, timeout, name, lambda response: response.json(content_type=None))
+    if not isinstance(data, dict):
+        raise AdsbError(f"Unexpected answer from {name or url}")
+    return data
+
+
+async def _get(
+    session: aiohttp.ClientSession,
+    url: str,
+    headers: dict[str, str] | None,
+    timeout: float,
+    name: str | None,
+    read: Callable[[aiohttp.ClientResponse], Awaitable[Any]],
+) -> Any:
+    """What `read` makes of the answer at `url`, as _get_json describes its errors."""
     source = name or url
     try:
         async with asyncio.timeout(timeout):
@@ -80,16 +98,13 @@ async def _get_json(
                     raise AdsbNotFound(f"Nothing at {source}")
                 if response.status != 200:
                     raise AdsbError(f"HTTP {response.status} from {source}")
-                data = await response.json(content_type=None)
+                return await read(response)
     except (aiohttp.ClientError, TimeoutError, ValueError) as err:
         if name:
             # A named source's error gives only its type, and leaves the cause out of the chain, since aiohttp
             # writes the URL into some of its messages, and a debug log prints the cause with its traceback.
             raise AdsbError(f"Request to {source} failed: {type(err).__name__}") from None
         raise AdsbError(f"Request to {source} failed: {err!r}") from err
-    if not isinstance(data, dict):
-        raise AdsbError(f"Unexpected answer from {source}")
-    return data
 
 
 class ReceiverClient:
@@ -110,11 +125,22 @@ class ReceiverClient:
         """The receiver's statistics, for the last minute, 5 and 15 minutes and since it started."""
         return await self._get(f"{url}/data/stats.json")
 
-    async def _get(self, url: str) -> dict[str, Any]:
+    async def type_table(self, url: str) -> dict[str, Any]:
+        """tar1090's table of aircraft types, from the folder its page names: {"A320": ["AIRBUS A-320", "L2J", "M"], ...}."""
+        page = await self._get(f"{url}/", text=True)
+        if not (found := DATABASE_FOLDER.search(page)):
+            raise AdsbError("tar1090's page names no database folder")
+        return await self._get(f"{url}/{found.group(1)}/icao_aircraft_types2.js")
+
+    async def _get(self, url: str, text: bool = False) -> Any:
+        """The JSON object at `url`, or with `text` the page as it is."""
         # An address with a login is named without it, and with only the error's type, which aiohttp may
         # otherwise write the whole address into.
         shown = without_login(url)
-        return await _get_json(self._session, url, name=shown if shown != url else None)
+        name = shown if shown != url else None
+        if text:
+            return await _get(self._session, url, None, REQUEST_TIMEOUT_SECONDS, name, lambda response: response.text())
+        return await _get_json(self._session, url, name=name)
 
 
 class RequestSpacing:

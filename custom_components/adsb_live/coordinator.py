@@ -32,6 +32,7 @@ from .aircraft import (
     merge,
     number,
     parse_aircraft,
+    type_kinds,
 )
 from .api import AdsbError, AdsbFiClient, DetailsClient, ReceiverClient
 from .const import CONF_REFRESH_SECONDS, DOMAIN, STATS_REFRESH_SECONDS
@@ -55,6 +56,11 @@ EVENT_REARM_SECONDS = 10 * 60
 # The receiver's own aircraft are read for its list only when someone has the list open, and an answer is kept this
 # long, so that dashboards open side by side ask readsb once. readsb writes aircraft.json every second.
 HEARD_CACHE_SECONDS = 5
+
+# tar1090's table of aircraft types changes only with ultrafeeder's database, so it is read again once a day, and an hour
+# after it couldn't be read, as when the receiver has no tar1090.
+TYPES_REFRESH_SECONDS = 24 * 3600
+TYPES_RETRY_SECONDS = 3600
 EVENT_TYPES = ("emergency", "military", "overhead")
 
 
@@ -94,6 +100,7 @@ class AdsbRuntimeData:
     altitude_unit: str
     stats: StatsCoordinator
     heard: ReceiverAircraft
+    types: TypeKinds
     feeds: dict[str, FeedCoordinator] = field(default_factory=dict)
 
 
@@ -143,6 +150,31 @@ class ReceiverAircraft:
             # From the answer, so that a call waiting behind a slow read gets that read's answer.
             self._read_at = monotonic()
             return self._answer
+
+
+class TypeKinds:
+    """Each aircraft type's kind from the table tar1090 serves (see type_kinds), for aircraft that transmit no category.
+
+    Without the table, as without tar1090, there are none, and such aircraft keep the kind other.
+    """
+
+    def __init__(self, client: ReceiverClient, url: str) -> None:
+        self._client = client
+        self._url = url
+        self._lock = asyncio.Lock()
+        self._kinds: dict[str, str] = {}
+        self._next_read = 0.0
+
+    async def get(self) -> dict[str, str]:
+        async with self._lock:
+            if monotonic() >= self._next_read:
+                try:
+                    self._kinds = type_kinds(await self._client.type_table(self._url))
+                    self._next_read = monotonic() + TYPES_REFRESH_SECONDS
+                except AdsbError as err:
+                    _LOGGER.debug("No table of aircraft types from the receiver: %s", err)
+                    self._next_read = monotonic() + TYPES_RETRY_SECONDS
+            return self._kinds
 
 
 @dataclass(frozen=True)
@@ -216,8 +248,11 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
             trails = self._trails
         distance_from = runtime.receiver.position or (config.area.latitude, config.area.longitude)
         measured = measure(aircraft, distance_from)
+        types = await runtime.types.get()
         return FeedData(
-            build_features(measured, trails, runtime.texts, runtime.altitude_unit, config.color_by_altitude, self.subentry.subentry_id),
+            build_features(
+                measured, trails, runtime.texts, runtime.altitude_unit, config.color_by_altitude, self.subentry.subentry_id, types
+            ),
             now,
             len(aircraft),
             any(plane.altitude_ft is None for plane in aircraft),
