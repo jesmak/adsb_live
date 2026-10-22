@@ -20,7 +20,7 @@ from homeassistant.loader import async_get_integration
 
 from .api import ADSB_FI_CLIENT, DETAILS_CLIENT, AdsbError, AdsbFiClient, DetailsClient, ReceiverClient
 from .const import CONF_ALTITUDE_UNIT, CONF_LANGUAGE, DEFAULT_ALTITUDE_UNIT, DOMAIN
-from .coordinator import AdsbConfigEntry, AdsbRuntimeData, FeedCoordinator, Receiver, StatsCoordinator
+from .coordinator import AdsbConfigEntry, AdsbRuntimeData, FeedCoordinator, Receiver, ReceiverAircraft, StatsCoordinator
 from .services import async_setup_services
 from .texts import async_load_texts
 
@@ -50,15 +50,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
     except AdsbError as err:
         raise ConfigEntryNotReady(str(err)) from err
 
+    # A receiver saved before the setting existed in the integration uses the default.
+    altitude_unit = entry.data.get(CONF_ALTITUDE_UNIT, DEFAULT_ALTITUDE_UNIT)
     entry.runtime_data = AdsbRuntimeData(
         receiver_client=client,
         adsb_fi=hass.data[ADSB_FI_CLIENT],
         details=hass.data[DETAILS_CLIENT],
         receiver=receiver,
         texts=await async_load_texts(hass, entry.data[CONF_LANGUAGE]),
-        # A receiver saved before the setting existed in the integration uses the default.
-        altitude_unit=entry.data.get(CONF_ALTITUDE_UNIT, DEFAULT_ALTITUDE_UNIT),
+        altitude_unit=altitude_unit,
         stats=StatsCoordinator(hass, entry, client, url),
+        heard=ReceiverAircraft(client, url, altitude_unit),
     )
     for subentry in entry.subentries.values():
         entry.runtime_data.feeds[subentry.subentry_id] = FeedCoordinator(hass, entry, subentry)

@@ -42,6 +42,14 @@ def test_only_live_positions_of_aircraft_are_read() -> None:
     ], "a stale position, no position and a ground vehicle are left out"
 
 
+# What transmits a category of set C is no aircraft for the feeds, on the ground or in the air, nor is C0 without a subcategory.
+@pytest.mark.parametrize("category", ["C0", "C1", "C3"])
+def test_set_c_is_left_out_of_the_feeds(category: str) -> None:
+    base = {"hex": "467000", "type": "adsb_icao", "alt_baro": 400, "lat": 61.5, "lon": 23.8, "seen_pos": 1}
+    data = {"now": 1792566385.0, "aircraft": [{**base, "category": category}, {**base, "hex": "468000", "category": "A1"}]}
+    assert [plane.hex for plane in parse_aircraft(data)] == ["468000"]
+
+
 def test_adsb_fi_gives_its_time_in_milliseconds() -> None:
     data = adsb_fi_aircraft()
     aircraft = parse_aircraft(data, remote=True)

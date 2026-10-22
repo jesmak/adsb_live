@@ -33,6 +33,8 @@ from .texts import Texts
 
 # readsb keeps an aircraft for a while after its last position; older positions aren't live.
 MAX_POSITION_AGE_SECONDS = 60
+# The receiver's own list holds the aircraft heard in the last minute, with a position or without.
+HEARD_SECONDS = 60
 
 # readsb's vertical rates come in steps of 64 ft/min, so anything smaller is level flight.
 LEVEL_RATE_FT_MIN = 100
@@ -175,6 +177,54 @@ def parse_aircraft(data: Mapping[str, Any], remote: bool = False) -> list[Aircra
     return result
 
 
+def heard_aircraft(data: Mapping[str, Any], unit: str) -> list[dict[str, Any]]:
+    """Every aircraft in readsb's aircraft.json heard in the last minute, with a position or without, for the receiver's list.
+
+    The altitude is in `unit`, "m" or "ft", and the speed is the ground speed in km/h, as on the map. Fields readsb doesn't
+    give are left out.
+    """
+    now = number(data.get("now"))
+    if now is None:
+        raise ValueError("No time in the aircraft list")
+    items = data.get("aircraft") or []
+    if not isinstance(items, list):
+        raise ValueError("The aircraft list isn't a list")
+    result: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        hex_code = str(item.get("hex") or "").lower()
+        seen = number(item.get("seen"))
+        if not hex_code or seen is None or seen > HEARD_SECONDS or str(item.get("category") or "").startswith("C"):
+            continue
+        on_ground = item.get("alt_baro") == "ground"
+        altitudes = () if on_ground else (number(item.get("alt_baro")), number(item.get("alt_geom")))
+        altitude_ft = next((value for value in altitudes if value is not None), None)
+        speed = number(item.get("gs"))
+        rssi = number(item.get("rssi"))
+        position_age = number(item.get("seen_pos"))
+        position = (
+            number(item.get("lat")) is not None
+            and number(item.get("lon")) is not None
+            and position_age is not None
+            and position_age <= MAX_POSITION_AGE_SECONDS
+        )
+        plane: dict[str, Any] = {
+            "hex": hex_code,
+            "name": display_name(hex_code, item),
+            "registration": str(item.get("r") or "") or None,
+            "type": str(item.get("t") or "") or None,
+            "altitude": None if altitude_ft is None else round(altitude_ft if unit == "ft" else altitude_ft * METRES_PER_FOOT),
+            "on_ground": True if on_ground else None,
+            "speed_kmh": None if speed is None else round(speed * KM_PER_NM),
+            "rssi": None if rssi is None else round(rssi, 1),
+            "heard": dt_util.utc_from_timestamp(now - seen).isoformat(timespec="seconds"),
+            "position": position,
+        }
+        result.append({key: value for key, value in plane.items() if value is not None})
+    return result
+
+
 def merge(local: Iterable[Aircraft], remote: Iterable[Aircraft]) -> list[Aircraft]:
     """The local receiver's aircraft, then those only adsb.fi has."""
     result = list(local)
@@ -306,7 +356,12 @@ def heading(plane: Aircraft) -> int | None:
 
 def aircraft_name(plane: Aircraft) -> str:
     """Its callsign, or its registration or address when it sends no callsign."""
-    return plane.callsign or str(plane.data.get("r") or "") or plane.hex.upper()
+    return display_name(plane.hex, plane.data)
+
+
+def display_name(hex_code: str, data: Mapping[str, Any]) -> str:
+    """An aircraft's callsign, or its registration or address when it sends no callsign, the same on the map and in the list."""
+    return str(data.get("flight") or "").strip() or str(data.get("r") or "") or hex_code.upper()
 
 
 def build_features(

@@ -179,6 +179,23 @@ out when the aircraft is more than 100 km from the way between its airports. The
 linked to its page on Planespotters and credited to its photographer. A source that fails or knows nothing leaves its
 row out. Both answers are kept for a day.
 
+### `adsb_live.get_receiver_aircraft`
+
+Returns the aircraft the receiver itself has heard in the last minute, with a position or without, and never those only
+adsb.fi knows. [adsb-receiver-card](https://github.com/jesmak/adsb-receiver-card) calls it while its list of aircraft
+is open.
+
+| Field    | Description            |
+| -------- | ---------------------- |
+| `device` | The receiver's device. |
+
+The answer is `{"aircraft": [...], "altitude_unit": "m"}`, with the altitudes in the receiver's altitude unit. Each
+aircraft has its `hex` address and `name`, as the feeds name it, and `heard`, when it was last heard. `position` tells
+whether it has a position from the last minute. `registration`, `type` (its ICAO type designator, such as `A320`),
+`altitude`, `speed_kmh` (its ground speed) and `rssi` (the signal in dBFS) are there when readsb knows them. An aircraft
+on the ground has `on_ground`, true, and no altitude. As in the feeds, what transmits a category of set C is left out.
+An answer is kept for 5 seconds, so dashboards open side by side read the receiver once.
+
 ## Examples
 
 Aircraft on a map with their list beside it, nearest first:
@@ -290,10 +307,10 @@ python3.14 -m venv .venv
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `__init__.py`                       | Setup: the receiver and one coordinator per feed                                                                       |
 | `config_flow.py`                    | The receiver and feed forms                                                                                            |
-| `coordinator.py`                    | Fetching the statistics and the feeds                                                                                  |
+| `coordinator.py`                    | Fetching the statistics and the feeds, and the receiver's aircraft for its list                                        |
 | `sensor.py`                         | The health sensors, feed sensors and nearest aircraft                                                                  |
 | `event.py`                          | The feeds' event entities                                                                                              |
-| `services.py`                       | The detail action, an aircraft's route and photo                                                                       |
+| `services.py`                       | The actions: an aircraft's route and photo, and the receiver's aircraft for its list                                   |
 | `aircraft.py`                       | Reading readsb's JSON, trails and building feed items                                                                  |
 | `colors.py`                         | Colours by altitude and the feed's legend                                                                              |
 | `health.py`                         | The health sensors' values from readsb's statistics                                                                    |

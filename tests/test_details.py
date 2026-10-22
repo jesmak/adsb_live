@@ -167,6 +167,15 @@ async def test_details_of_an_aircraft_that_has_left_or_a_feed_that_doesnt_exist(
     assert raised.value.translation_key == "unknown_feed"
 
 
+async def test_a_feed_whose_receiver_isnt_running_is_no_feed(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker) -> None:
+    mock_receiver(aioclient_mock)
+    feed, coordinator = await set_up(hass)
+    assert await hass.config_entries.async_unload(coordinator.config_entry.entry_id)
+    with pytest.raises(ServiceValidationError) as raised:
+        await details(hass, feed, "46a1b2")
+    assert raised.value.translation_key == "unknown_feed"
+
+
 async def test_an_address_that_isnt_icao_gets_no_photo_request(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker) -> None:
     mock_receiver(aioclient_mock, aircraft_with(**{"46a1b2": {"hex": "~2a0001", "flight": ""}}))
     feed, _ = await set_up(hass)

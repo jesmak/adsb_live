@@ -174,11 +174,27 @@
           "description": "Ilma-aluksen ICAO-osoite, esimerkiksi 4ca8e1."
         }
       }
+    },
+    "get_receiver_aircraft": {
+      "name": "Hae vastaanottimen ilma-alukset",
+      "description": "Palauttaa ilma-alukset, jotka vastaanotin itse on kuullut viimeisen minuutin aikana, sijainnin kanssa tai ilman, ja niiden korkeuksien yksikön. adsb-receiver-card kutsuu tätä, kun sen ilma-alusten lista on auki.",
+      "fields": {
+        "device": {
+          "name": "Vastaanotin",
+          "description": "Vastaanottimen laite."
+        }
+      }
     }
   },
   "exceptions": {
     "unknown_feed": {
-      "message": "Tällä tunnisteella ei ole asetettu ADS-B Live -syötettä."
+      "message": "Tällä tunnisteella ei ole toiminnassa olevaa ADS-B Live -syötettä."
+    },
+    "unknown_receiver": {
+      "message": "Tällä laitteella ei ole toiminnassa olevaa ADS-B Live -vastaanotinta."
+    },
+    "receiver_aircraft_failed": {
+      "message": "Vastaanottimen ilma-aluksia ei saatu luettua ({error})."
     }
   }
 }

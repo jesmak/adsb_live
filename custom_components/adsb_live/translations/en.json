@@ -174,11 +174,27 @@
           "description": "The aircraft's ICAO address, such as 4ca8e1."
         }
       }
+    },
+    "get_receiver_aircraft": {
+      "name": "Get the receiver's aircraft",
+      "description": "Returns the aircraft the receiver itself has heard in the last minute, with a position or without, and the unit of their altitudes. adsb-receiver-card calls this while its list of aircraft is open.",
+      "fields": {
+        "device": {
+          "name": "Receiver",
+          "description": "The receiver's device."
+        }
+      }
     }
   },
   "exceptions": {
     "unknown_feed": {
-      "message": "No ADS-B Live feed with this ID is set up."
+      "message": "No ADS-B Live feed with this ID is set up and running."
+    },
+    "unknown_receiver": {
+      "message": "No ADS-B Live receiver with this device is set up and running."
+    },
+    "receiver_aircraft_failed": {
+      "message": "The receiver's aircraft couldn't be read ({error})."
     }
   }
 }

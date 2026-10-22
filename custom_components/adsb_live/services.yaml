@@ -10,3 +10,12 @@ get_aircraft_details:
       example: "4ca8e1"
       selector:
         text:
+get_receiver_aircraft:
+  fields:
+    device:
+      required: true
+      selector:
+        device:
+          filter:
+            integration: adsb_live
+            manufacturer: readsb

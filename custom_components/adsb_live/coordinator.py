@@ -1,11 +1,13 @@
-"""Update coordinators: the receiver's statistics, and one per feed (config subentry)."""
+"""Update coordinators for the receiver's statistics and each feed, and a reader of the receiver's own aircraft for its list."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from time import monotonic
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
@@ -22,6 +24,7 @@ from .aircraft import (
     build_features,
     emergency_squawk,
     heading,
+    heard_aircraft,
     in_area,
     is_military,
     is_overhead,
@@ -48,6 +51,10 @@ STATS_MAX_AGE_SECONDS = 180
 # longer, fires the event again when it comes back. Shorter gaps, such as an update it missed at the edge of coverage
 # or one that failed, don't count as leaving.
 EVENT_REARM_SECONDS = 10 * 60
+
+# The receiver's own aircraft are read for its list only when someone has the list open, and an answer is kept this
+# long, so that dashboards open side by side ask readsb once. readsb writes aircraft.json every second.
+HEARD_CACHE_SECONDS = 5
 EVENT_TYPES = ("emergency", "military", "overhead")
 
 
@@ -86,6 +93,7 @@ class AdsbRuntimeData:
     # "m" or "ft", for altitudes and vertical rates in the feeds.
     altitude_unit: str
     stats: StatsCoordinator
+    heard: ReceiverAircraft
     feeds: dict[str, FeedCoordinator] = field(default_factory=dict)
 
 
@@ -111,6 +119,30 @@ class StatsCoordinator(DataUpdateCoordinator[dict[str, float | None]]):
             raise UpdateFailed(str(err)) from err
         check_written_lately(stats, STATS_MAX_AGE_SECONDS, "stats.json")
         return receiver_health(stats)
+
+
+class ReceiverAircraft:
+    """The receiver's own aircraft for its list, read from aircraft.json when asked, as the action get_receiver_aircraft answers."""
+
+    def __init__(self, client: ReceiverClient, url: str, unit: str) -> None:
+        self._client = client
+        self._url = url
+        self._unit = unit
+        self._lock = asyncio.Lock()
+        self._answer: dict[str, Any] | None = None
+        self._read_at = 0.0
+
+    async def get(self) -> dict[str, Any]:
+        """{"aircraft": [...], "altitude_unit": unit}. Raises AdsbError, UpdateFailed or ValueError when it can't be read."""
+        async with self._lock:
+            if self._answer is not None and monotonic() - self._read_at < HEARD_CACHE_SECONDS:
+                return self._answer
+            data = await self._client.aircraft(self._url)
+            check_written_lately(data, AIRCRAFT_MAX_AGE_SECONDS, "aircraft.json")
+            self._answer = {"aircraft": heard_aircraft(data, self._unit), "altitude_unit": self._unit}
+            # From the answer, so that a call waiting behind a slow read gets that read's answer.
+            self._read_at = monotonic()
+            return self._answer
 
 
 @dataclass(frozen=True)

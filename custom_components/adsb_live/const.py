@@ -47,6 +47,8 @@ MAX_OVERHEAD_RADIUS_KM: Final = 50
 
 # The detail action that feeds name for each aircraft.
 SERVICE_GET_AIRCRAFT_DETAILS: Final = "get_aircraft_details"
+SERVICE_GET_RECEIVER_AIRCRAFT: Final = "get_receiver_aircraft"
+ATTR_DEVICE: Final = "device"
 ATTR_FEED: Final = "feed"
 ATTR_HEX: Final = "hex"
 

@@ -114,7 +114,16 @@ def adsb_fi_aircraft() -> dict[str, Any]:
     now_ms = time.time() * 1000
     return {
         "ac": [
-            {"hex": "46a1b2", "type": "adsb_icao", "flight": "EXA123  ", "alt_baro": 11900, "lat": 61.551, "lon": 23.91, "seen_pos": 2},
+            {
+                "hex": "46a1b2",
+                "type": "adsb_icao",
+                "flight": "EXA123  ",
+                "alt_baro": 11900,
+                "lat": 61.551,
+                "lon": 23.91,
+                "seen_pos": 2,
+                "seen": 1,
+            },
             {
                 "hex": "4ca123",
                 "type": "adsb_icao",
@@ -128,6 +137,7 @@ def adsb_fi_aircraft() -> dict[str, Any]:
                 "lat": 61.9,
                 "lon": 24.5,
                 "seen_pos": 0.5,
+                "seen": 0.5,
             },
         ],
         "msg": "No error",
