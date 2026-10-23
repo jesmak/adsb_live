@@ -153,9 +153,9 @@ class ReceiverAircraft:
 
 
 class TypeKinds:
-    """Each aircraft type's kind from the table tar1090 serves (see type_kinds), for aircraft that transmit no category.
+    """Each aircraft type's kind from the table tar1090 serves (see type_kinds), which wins over all but EXACT_CATEGORIES.
 
-    Without the table, as without tar1090, there are none, and such aircraft keep the kind other.
+    Without the table, as without tar1090, there are none, and every aircraft has its category's kind.
     """
 
     def __init__(self, client: ReceiverClient, url: str) -> None:

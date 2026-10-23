@@ -59,18 +59,23 @@ KINDS = {
     "B6": "air.drone",
 }
 OTHER_KIND = "air.other"
-# Categories that say nothing of the aircraft: none at all, or A0 for no information. Those take their type's kind.
-NO_CATEGORY = ("", "A0")
+# Categories that name a kind of aircraft, not a weight band. They win over the type, as tar1090's table makes a Hawk or a
+# Hornet a medium jet and a motorglider a light piston. B4, an ultralight, is left to the type, which makes one light too.
+EXACT_CATEGORIES = ("A6", "A7", "B1", "B2", "B6")
 # Types tar1090's table tells only by their designator, with no description its code places: the glider, and the
 # ultralight and paraglider, light as the category B4 makes them.
 DESIGNATOR_KINDS = {"GLID": "air.glider", "ULAC": "air.light", "PARA": "air.light"}
 
 
 def aircraft_kind(plane: Aircraft, types: Mapping[str, str]) -> str:
-    """The kind its category gives, or for one transmitting none, the kind its type has in `types` (see type_kinds)."""
+    """The kind a category of a kind of aircraft gives (EXACT_CATEGORIES), otherwise the kind its type has in `types` (see
+    type_kinds), and the kind its category gives when the table doesn't know the type.
+
+    The weight bands of A1 to A5 say nothing of the engines, as an ATR transmits A2 like a regional jet.
+    """
     category = str(plane.data.get("category") or "")
-    if category in NO_CATEGORY:
-        return types.get(str(plane.data.get("t") or "").upper(), OTHER_KIND)
+    if category not in EXACT_CATEGORIES and (kind := types.get(str(plane.data.get("t") or "").upper())):
+        return kind
     return KINDS.get(category, OTHER_KIND)
 
 
@@ -79,8 +84,8 @@ def type_kind(code: str, wake: str) -> str | None:
 
     The table marks a helicopter H, a gyrocopter G, a tiltrotor R, a balloon or airship B and a drone D. The wake
     categories match the emitter categories' weights: light under 7 t (A1), heavy over 136 t (A5). Medium covers both
-    small and large (A2 and A3), told apart by the engines, as the table gives no weights. None for a description the
-    code can't place, such as a tower's (T0-).
+    small and large (A2 and A3), told apart by the engines, as the table gives no weights: jets are large, turboprops
+    turboprop, and pistons small. None for a description the code can't place, such as a tower's (T0-).
     """
     if code[:1] in ("H", "G", "R"):
         return "air.rotorcraft"
@@ -93,7 +98,7 @@ def type_kind(code: str, wake: str) -> str | None:
     if wake in ("H", "J"):
         return "air.heavy"
     if wake == "M":
-        return "air.large" if code.endswith("J") else "air.small"
+        return {"J": "air.large", "T": "air.turboprop"}.get(code[-1:], "air.small")
     if wake == "L":
         return "air.light"
     return None
@@ -427,8 +432,8 @@ def build_features(
     """Point features for the measured aircraft (see measure), in their order, each followed by its trail when it has one.
 
     Altitudes and vertical rates are written in `unit`, "m" or "ft". With `color_by_altitude`, each point has its
-    altitude's colour, which its trail takes too. Each point's details on tap name the feed by `feed_id`. An aircraft
-    transmitting no category takes its type's kind from `types`.
+    altitude's colour, which its trail takes too. Each point's details on tap name the feed by `feed_id`. An aircraft's
+    kind comes from its category or its type in `types` (see aircraft_kind).
     """
     features: list[dict[str, Any]] = []
     for distance_km, plane in measured:

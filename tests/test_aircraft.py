@@ -159,34 +159,60 @@ def test_an_aircraft_without_callsign_or_registration_is_named_by_its_address() 
     assert features_of([plane("4ca124", 0, 24.0)])[0]["properties"]["kind"] == "air.other"
 
 
-# The kind is the category the aircraft transmits. Only one that transmits none, or A0 for no information, gets the kind
-# its type's class gives in tar1090's table, and without the type in the table it stays other.
-TYPES = {"A320": "air.large", "E120": "air.small"}
+# A category that names a kind of aircraft (fast and agile, rotorcraft, glider, balloon, drone) gives the kind, as
+# tar1090's table makes a Hawk a medium jet and a motorglider a light piston. Otherwise the type's class in the table
+# decides when the table knows the type, as the weight bands of A1 to A5 say nothing of the engines: an ATR transmits A2
+# like a regional jet. Without the type in the table it is the category, and without both it is other.
+TYPES = {"A320": "air.large", "AT76": "air.turboprop", "HAWK": "air.large", "SF25": "air.light"}
 
 
 @pytest.mark.parametrize(
     ("category", "type_code", "expected"),
     [
-        ("A3", "E120", "air.large"),
-        ("A1", None, "air.light"),
+        ("A6", "HAWK", "air.high_performance"),
+        ("A7", "A320", "air.rotorcraft"),
+        ("B1", "SF25", "air.glider"),
+        ("B2", "A320", "air.balloon"),
         ("B6", "A320", "air.drone"),
+        ("A2", "AT76", "air.turboprop"),
+        ("A3", "AT76", "air.turboprop"),
+        ("A2", "A320", "air.large"),
+        ("A5", "A320", "air.large"),
+        ("A1", "SF25", "air.light"),
+        ("A3", "A320", "air.large"),
+        (None, "AT76", "air.turboprop"),
         ("A0", "A320", "air.large"),
-        (None, "E120", "air.small"),
         ("", "a320", "air.large"),
+        ("B3", "A320", "air.large"),
+        ("B4", "A320", "air.large"),
+        ("B4", None, "air.light"),
+        ("A6", None, "air.high_performance"),
+        ("A7", None, "air.rotorcraft"),
+        ("B1", None, "air.glider"),
+        ("B2", None, "air.balloon"),
+        ("A2", None, "air.small"),
+        ("A3", None, "air.large"),
+        ("A4", None, "air.large"),
+        ("A5", None, "air.heavy"),
+        ("A4", "AT76", "air.turboprop"),
+        ("A1", "A320", "air.large"),
+        ("A3", "ZZZZ", "air.large"),
+        ("A1", None, "air.light"),
         ("A0", "ZZZZ", "air.other"),
         ("A0", None, "air.other"),
         (None, None, "air.other"),
-        ("B3", "A320", "air.other"),
+        ("B3", None, "air.other"),
     ],
 )
-def test_the_kind_falls_back_to_the_type_only_without_a_category(category: str | None, type_code: str | None, expected: str) -> None:
+def test_a_kind_of_aircraft_from_its_category_and_otherwise_its_type(category: str | None, type_code: str | None, expected: str) -> None:
     data = {key: value for key, value in (("category", category), ("t", type_code)) if value is not None}
     assert features_of([plane("4ca123", 0, 24.0, **data)], types=TYPES)[0]["properties"]["kind"] == expected
 
 
 # A type's class from ICAO's description code and wake turbulence category, as tar1090's table writes them: rotorcraft,
-# balloons and drones by their kind of aircraft, then heavy by wake, medium jets large and other medium aircraft small, and
-# light wake light. What the code can't tell, such as a tower (T0-), a ground vehicle (V0-) or a bare L0-, is none.
+# balloons and drones by their kind of aircraft, then heavy by wake, medium jets large, medium turboprops turboprop and
+# other medium aircraft small, and light wake light. What the code can't tell, such as a tower (T0-), a ground vehicle
+# (V0-) or a bare L0-, is none.
 @pytest.mark.parametrize(
     ("code", "wake", "expected"),
     [
@@ -206,7 +232,7 @@ def test_the_kind_falls_back_to_the_type_only_without_a_category(category: str |
         ("A2J", "M", "air.large"),
         ("G0-", "-", "air.rotorcraft"),
         # A seaplane is placed like a landplane.
-        ("S2T", "M", "air.small"),
+        ("S2T", "M", "air.turboprop"),
         ("S1P", "L", "air.light"),
         ("T0-", "-", None),
         ("V0-", "-", None),
@@ -217,7 +243,11 @@ def test_the_kind_falls_back_to_the_type_only_without_a_category(category: str |
         ("L4T", "H", "air.heavy"),
         ("L2J", "M", "air.large"),
         ("L1J", "M", "air.large"),
-        ("L2T", "M", "air.small"),
+        # Turboprops of medium wake, an ATR, a Dash 8 or a C-130, are turboprops, and heavy and light ones by wake.
+        ("L2T", "M", "air.turboprop"),
+        ("L4T", "M", "air.turboprop"),
+        ("L1T", "L", "air.light"),
+        ("L2T", "L", "air.light"),
         ("L2P", "M", "air.small"),
         ("L1P", "L", "air.light"),
         ("L1J", "L", "air.light"),

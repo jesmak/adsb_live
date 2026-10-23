@@ -19,11 +19,11 @@ aircraft straight from the receiver on your own network, with no account, key or
 **map feeds**: a sensor per feed, holding every aircraft in it as GeoJSON, with the nearest aircraft and an event
 entity for emergencies, military aircraft and aircraft low overhead.
 
-Show the feeds on a map with [map-feed-card](https://github.com/jesmak/map-feed-card), which draws each aircraft
-heading the way it flies, with its trail, and shows its details beside the map or in a list, with its route and a
-photo when it is opened. The feed format is
-documented in [map-feed-format.md](https://github.com/jesmak/map-feed-card/blob/main/docs/map-feed-format.md).
-The receiver's own health has a card of its own, [adsb-receiver-card](https://github.com/jesmak/adsb-receiver-card).
+Show the feeds on a map with [map-feed-card](https://github.com/jesmak/map-feed-card), which draws each aircraft as the
+silhouette of its kind (1.1.0 or newer, the turboprop 1.2.0), heading the way it flies, with its trail, and shows its
+details beside the map or in a list, with its route and a photo when it is opened. The feed format is documented in
+[map-feed-format.md](https://github.com/jesmak/map-feed-card/blob/main/docs/map-feed-format.md). The receiver's own
+health has a card of its own, [adsb-receiver-card](https://github.com/jesmak/adsb-receiver-card).
 
 A receiver hears only what its antenna can see. A feed can add the aircraft [adsb.fi](https://adsb.fi/) knows around
 the same area, from the receivers of its community, so the map shows the traffic your own antenna misses.
@@ -127,13 +127,16 @@ its type's name and operator from the aircraft database. Its details show:
 - the position's source, which is ADS-B, MLAT, TIS-B, other or adsb.fi
 
 Altitudes and vertical rates are in the receiver's altitude unit. An emergency squawk (7500, 7600 or 7700) and a
-military aircraft get a notice in the details. The kinds are `air.light`, `air.small`, `air.large`, `air.heavy`,
-`air.high_performance`, `air.rotorcraft`, `air.glider`, `air.balloon`, `air.drone` and `air.other`, from the category
-the aircraft transmits. One that transmits none, or A0 for no information, as is common for aircraft found by MLAT,
-takes its type's kind from the table of aircraft types tar1090 serves on the receiver. A helicopter, gyrocopter or
-tiltrotor is a rotorcraft, a balloon or airship a balloon, a drone a drone, a glider a glider, and an ultralight or
-paraglider light. Otherwise a heavy wake category is heavy, a medium one large for jets and small for others, and a
-light one light. Without tar1090 such an aircraft stays `air.other`. The list can be sorted by distance or altitude.
+military aircraft get a notice in the details. The kinds are `air.light`, `air.small`, `air.large`, `air.turboprop`,
+`air.heavy`, `air.high_performance`, `air.rotorcraft`, `air.glider`, `air.balloon`, `air.drone` and `air.other`. A
+category that names a kind of aircraft, fast and agile (A6), rotorcraft (A7), glider (B1), balloon (B2) or drone (B6),
+gives the kind. Otherwise an aircraft's kind comes from its type, in the table of aircraft types tar1090 serves on the
+receiver, as the weight bands of A1 to A5 say nothing of the engines. An ATR transmits A2 like a regional jet. A
+helicopter, gyrocopter or tiltrotor is a rotorcraft, a balloon or airship a balloon, a drone a drone, a glider a glider,
+and an ultralight or paraglider light. Otherwise a heavy wake category is heavy, a medium one large for jets, turboprop
+for turboprops and small for others, and a light one light. An aircraft whose type the table doesn't know, as without
+tar1090, takes the kind of the category it transmits, and one that transmits none, or A0 for no information, is
+`air.other`. The list can be sorted by distance or altitude.
 
 Opening an aircraft on the map fetches its route and a photo, which the card shows in its details (see
 [Actions](#actions)). Nothing is fetched for an aircraft nobody opens.

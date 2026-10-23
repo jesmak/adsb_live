@@ -1,4 +1,4 @@
-"""The table of aircraft types tar1090 serves, read for the feeds' kinds of aircraft that transmit no category."""
+"""The table of aircraft types tar1090 serves, read for the feeds' kinds of aircraft."""
 
 from __future__ import annotations
 
@@ -20,14 +20,15 @@ TABLE = {"A320": ["AIRBUS A-320", "L2J", "M"], "C172": ["CESSNA 172 Skyhawk", "L
 
 
 async def set_up(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, index: dict[str, Any], url: str = RECEIVER_URL
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, index: dict[str, Any], url: str = RECEIVER_URL, category: str = "A0"
 ) -> FeedCoordinator:
-    """The receiver with its airliner transmitting no category, and tar1090's page answering with `index`."""
+    """The receiver with its airliner transmitting `category`, no information by default, and tar1090's page answering
+    with `index`."""
     aioclient_mock.clear_requests()
     aioclient_mock.get(f"{RECEIVER_URL}/", **index)
     aioclient_mock.get(f"{RECEIVER_URL}/db-3.14.1722/icao_aircraft_types2.js", json=TABLE)
     aioclient_mock.get(f"{RECEIVER_URL}/data/receiver.json", json=RECEIVER)
-    aioclient_mock.get(f"{RECEIVER_URL}/data/aircraft.json", json=aircraft_with(**{"46a1b2": {"category": "A0"}}))
+    aioclient_mock.get(f"{RECEIVER_URL}/data/aircraft.json", json=aircraft_with(**{"46a1b2": {"category": category}}))
     aioclient_mock.get(f"{RECEIVER_URL}/data/stats.json", json=stats())
     entry = receiver_entry(hass, url=url)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -46,8 +47,16 @@ def index_calls(aioclient_mock: AiohttpClientMocker) -> int:
 async def test_an_aircraft_without_a_category_gets_its_types_kind(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker) -> None:
     coordinator = await set_up(hass, aioclient_mock, {"text": INDEX})
     assert kind_of(coordinator, "46a1b2") == "air.large"
-    # One with a category keeps it.
     assert kind_of(coordinator, "461f00") == "air.light"
+
+
+async def test_the_types_kind_wins_over_a_weight_band_but_not_over_a_kind_of_aircraft(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    coordinator = await set_up(hass, aioclient_mock, {"text": INDEX}, category="A2")
+    assert kind_of(coordinator, "46a1b2") == "air.large", "the airliner's type, not A2's small"
+    coordinator = await set_up(hass, aioclient_mock, {"text": INDEX}, category="A6")
+    assert kind_of(coordinator, "46a1b2") == "air.high_performance"
 
 
 async def test_without_tar1090_the_kind_stays_other_and_the_page_is_asked_for_again_only_an_hour_later(
