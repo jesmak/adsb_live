@@ -19,6 +19,7 @@ from homeassistant.util import dt as dt_util
 from .aircraft import (
     Aircraft,
     FeedConfig,
+    Positions,
     Trails,
     aircraft_name,
     build_features,
@@ -29,10 +30,10 @@ from .aircraft import (
     is_military,
     is_overhead,
     measure,
-    merge,
     number,
     parse_aircraft,
     type_kinds,
+    updates_to_hold,
 )
 from .api import AdsbError, AdsbFiClient, DetailsClient, ReceiverClient
 from .const import CONF_REFRESH_SECONDS, DOMAIN, STATS_REFRESH_SECONDS
@@ -214,6 +215,7 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
         )
         self.subentry = subentry
         self.feed_config = FeedConfig.from_data(subentry.data)
+        self._positions = Positions(updates_to_hold(subentry.data[CONF_REFRESH_SECONDS]))
         self._trails = Trails()
         self._adsb_fi_failing = False
         # For each event type, the aircraft in its state, by when they were last seen in it.
@@ -239,8 +241,11 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
         except (AdsbError, ValueError) as err:
             raise UpdateFailed(str(err)) from err
 
-        aircraft = merge(local, await self._adsb_fi(runtime.adsb_fi)) if config.adsb_fi else local
-        aircraft = in_area(aircraft, config.area)
+        # The receiver's own first, so that it wins over adsb.fi when both have a believable position.
+        candidates = [*local, *await self._adsb_fi(runtime.adsb_fi)] if config.adsb_fi else local
+        # Before the area, so that a false position doesn't take one of the receiver's own aircraft out of it. adsb.fi's
+        # answer has only what it places within the area, false or not.
+        aircraft = in_area(self._positions.check(candidates), config.area)
         now = dt_util.utcnow()
         trails = None
         if config.trail_minutes > 0:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from homeassistant.util import dt as dt_util
@@ -35,6 +35,15 @@ from .texts import Texts
 MAX_POSITION_AGE_SECONDS = 60
 # The receiver's own list holds the aircraft heard in the last minute, with a position or without.
 HEARD_SECONDS = 60
+
+# Faster than this from an aircraft's last believable position is no flight but a false position, such as a spoofed GPS
+# gives, hundreds of kilometres off. The margin covers MLAT's error between fixes moments apart. The limit is fixed rather
+# than the aircraft's own speed, which comes from the same GPS.
+MAX_SPEED_KMH = 2500
+POSITION_MARGIN_KM = 5
+# A jump left out for whole updates covering at least this long, or for one update when they come further apart, is
+# believed: the aircraft may really be elsewhere, or the earlier position may have been the false one.
+JUMP_BELIEVED_AFTER_SECONDS = 60
 
 # readsb's vertical rates come in steps of 64 ft/min, so anything smaller is level flight.
 LEVEL_RATE_FT_MIN = 100
@@ -281,16 +290,66 @@ def heard_aircraft(data: Mapping[str, Any], unit: str) -> list[dict[str, Any]]:
     return result
 
 
-def merge(local: Iterable[Aircraft], remote: Iterable[Aircraft]) -> list[Aircraft]:
-    """The local receiver's aircraft, then those only adsb.fi has."""
-    result = list(local)
-    seen = {aircraft.hex for aircraft in result}
-    result.extend(aircraft for aircraft in remote if aircraft.hex not in seen)
-    return result
-
-
 def in_area(aircraft: Iterable[Aircraft], area: Area) -> list[Aircraft]:
     return [plane for plane in aircraft if area.distance_km(plane.latitude, plane.longitude) <= area.radius_km]
+
+
+def updates_to_hold(interval_seconds: float) -> int:
+    """How many updates in a row a feed updating every `interval_seconds` leaves a jump out for (JUMP_BELIEVED_AFTER_SECONDS)."""
+    return math.ceil(JUMP_BELIEVED_AFTER_SECONDS / interval_seconds)
+
+
+@dataclass
+class Positions:
+    """Each aircraft's last believable position, with the updates in a row that have left its new one out and that it has
+    been missing from, kept in memory between updates. Counted in updates rather than by the clock, which the receiver's
+    and Home Assistant's needn't agree on.
+    """
+
+    # Updates in a row a jump is left out for, and an aircraft missing from them is remembered through (see updates_to_hold).
+    hold: int
+    last: dict[str, tuple[Aircraft, int, int]] = field(default_factory=dict)
+
+    def check(self, candidates: Iterable[Aircraft]) -> list[Aircraft]:
+        """One aircraft for each address in `candidates`, which lists the local receiver's before adsb.fi's.
+
+        It is the first of its candidates it could have flown to from its last believable position (MAX_SPEED_KMH), or the
+        first candidate when it has none. When none could, it is the first candidate at the last believable position, with
+        that position's time and source, until `hold` updates in a row have left it out, and the next one believes it. An
+        aircraft missing from more than `hold` updates in a row is forgotten, so that one failed request to adsb.fi forgets
+        nothing.
+        """
+        by_hex: dict[str, list[Aircraft]] = {}
+        for plane in candidates:
+            by_hex.setdefault(plane.hex, []).append(plane)
+        result = []
+        last: dict[str, tuple[Aircraft, int, int]] = {}
+        for hex_code, planes in by_hex.items():
+            believable, left_out, _ = self.last.get(hex_code, (None, 0, 0))
+            reached = [] if believable is None else [plane for plane in planes if reachable(believable, plane)]
+            if believable is None or reached or left_out >= self.hold:
+                plane = (reached or planes)[0]
+                last[hex_code] = (plane, 0, 0)
+                result.append(plane)
+            else:
+                last[hex_code] = (believable, left_out + 1, 0)
+                position = {"latitude": believable.latitude, "longitude": believable.longitude}
+                result.append(replace(planes[0], **position, position_time=believable.position_time, source=believable.source))
+        for hex_code, (believable, left_out, missing) in self.last.items():
+            if hex_code not in last and missing < self.hold:
+                last[hex_code] = (believable, left_out, missing + 1)
+        self.last = last
+        return result
+
+
+def reachable(last: Aircraft, plane: Aircraft) -> bool:
+    distance_km = haversine_km(last.latitude, last.longitude, plane.latitude, plane.longitude)
+    return within_reach(distance_km, plane.position_time - last.position_time)
+
+
+def within_reach(distance_km: float, seconds: float) -> bool:
+    """Whether an aircraft can have flown `distance_km` in `seconds`, before or after (MAX_SPEED_KMH)."""
+    return distance_km <= POSITION_MARGIN_KM + MAX_SPEED_KMH * abs(seconds) / 3600
 
 
 @dataclass
@@ -302,6 +361,11 @@ class Trails:
     def update(self, aircraft: Iterable[Aircraft], now: float, minutes: int) -> None:
         for plane in aircraft:
             trail = self.points.setdefault(plane.hex, [])
+            if trail and plane.position_time > trail[-1][0]:
+                last_time, longitude, latitude = trail[-1]
+                # A jump believed after its hold (see Positions) starts the trail anew rather than drawing it across the map.
+                if not within_reach(haversine_km(latitude, longitude, plane.latitude, plane.longitude), plane.position_time - last_time):
+                    trail.clear()
             if not trail or plane.position_time > trail[-1][0]:
                 trail.append((plane.position_time, plane.longitude, plane.latitude))
         cutoff = now - minutes * 60

@@ -138,6 +138,14 @@ for turboprops and small for others, and a light one light. An aircraft whose ty
 tar1090, takes the kind of the category it transmits, and one that transmits none, or A0 for no information, is
 `air.other`. The list can be sorted by distance or altitude.
 
+A position an aircraft could only have reached from its last believable one at more than 2 500 km/h, with 5 km to
+spare, is left out, as when a spoofed GPS puts an aircraft hundreds of kilometres off its track. The aircraft then
+stays where it last was, with that position's time, and its trail leaves the position out. When adsb.fi has a
+believable position for it while your receiver's is left out, adsb.fi's is shown. Once an aircraft's positions have
+been left out for at least a minute, or for one update when updates come further apart, it is shown where it is
+reported again, however far that is, and its trail starts anew there. That also puts right an aircraft whose first
+position was the false one.
+
 Opening an aircraft on the map fetches its route and a photo, which the card shows in its details (see
 [Actions](#actions)). Nothing is fetched for an aircraft nobody opens.
 

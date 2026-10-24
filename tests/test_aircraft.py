@@ -10,20 +10,21 @@ import pytest
 
 from custom_components.adsb_live.aircraft import (
     Aircraft,
+    Positions,
     Trails,
     build_features,
     in_area,
     measure,
-    merge,
     notices,
     parse_aircraft,
     type_kind,
     type_kinds,
+    updates_to_hold,
 )
 from custom_components.adsb_live.api import normalize_url, without_login
 from custom_components.adsb_live.colors import GROUND_COLOR, UNKNOWN_COLOR, altitude_color, legend
 from custom_components.adsb_live.const import LANGUAGES
-from custom_components.adsb_live.geo import Area, distance_to_leg_km, haversine_km
+from custom_components.adsb_live.geo import KM_PER_DEGREE_LATITUDE, Area, distance_to_leg_km, haversine_km
 from custom_components.adsb_live.health import receiver_health
 from custom_components.adsb_live.texts import PLACEHOLDER, Texts, load_texts
 
@@ -72,7 +73,7 @@ def test_adsb_fi_gives_its_time_in_milliseconds() -> None:
 
 def test_the_receiver_wins_over_adsb_fi() -> None:
     local = parse_aircraft(local_aircraft())
-    merged = merge(local, parse_aircraft(adsb_fi_aircraft(), remote=True))
+    merged = Positions(hold=4).check([*local, *parse_aircraft(adsb_fi_aircraft(), remote=True)])
     assert [plane.hex for plane in merged] == ["46a1b2", "461f00", "462000", "466000", "4ca123"]
     assert merged[0].source == "adsb"
 
@@ -348,6 +349,8 @@ def test_trails_follow_an_aircraft_and_end_with_its_minutes() -> None:
     trails.update([plane("a", 1015, 24.01)], now=1015, minutes=5)
     trails.update([plane("a", 1015, 24.01)], now=1030, minutes=5)
     assert trails.line("a") == [[24.0, 61.5], [24.01, 61.5]], "a position isn't added twice"
+    trails.update([plane("a", 1010, 24.005)], now=1030, minutes=5)
+    assert [point[0] for point in trails.points["a"]] == [1000, 1015], "nor an older one, such as a held aircraft's"
 
     # Straight on: the middle point adds nothing to the line.
     trails.update([plane("a", 1030, 24.02)], now=1030, minutes=5)
@@ -365,6 +368,151 @@ def test_trails_follow_an_aircraft_and_end_with_its_minutes() -> None:
     assert trails.line("a") is None, "older positions drop off"
     trails.update([], now=1400, minutes=5)
     assert "a" not in trails.points, "an aircraft gone for the trail's minutes is forgotten"
+
+
+def north(hex_code: str, position_time: float, km: float, source: str = "adsb", **data: object) -> Aircraft:
+    """An aircraft `km` north of 61.5 N, 24 E, along the meridian, where the distance is exactly that."""
+    return Aircraft(hex_code, 61.5 + km / KM_PER_DEGREE_LATITUDE, 24.0, position_time, source, data)
+
+
+# The limit is 2 500 km/h and a 5 km margin, so 15.42 km in 15 seconds and 11.94 km in 10. A spoofed GPS put an A320 389 km off its track.
+@pytest.mark.parametrize(
+    ("earlier", "new", "believed"),
+    [
+        ([], (1015, 389), True),
+        ([(1000, 0)], (1015, 3.5), True),
+        ([(1000, 0)], (1015, 15.4), True),
+        ([(1000, 0)], (1015, 15.5), False),
+        ([(1000, 0)], (1015, 389), False),
+        ([(1000, 0)], (1000, 4.9), True),
+        ([(1000, 0)], (1000, 5.1), False),
+        ([(1000, 0)], (990, 11.8), True),
+        ([(1000, 0)], (990, 12.1), False),
+        ([(1000, 0), (1015, 15)], (1030, 30), True),
+    ],
+    ids=[
+        "the first position, with nothing to compare it with",
+        "an airliner's 15 seconds",
+        "just within the limit",
+        "just beyond the limit",
+        "a spoofed GPS's position",
+        "MLAT's error between fixes at the same time",
+        "beyond the margin at the same time",
+        "an earlier fix within the limit",
+        "an earlier fix beyond the limit",
+        "measured from the last believable position, not the first",
+    ],
+)
+def test_a_position_the_aircraft_could_not_have_flown_to_is_left_out(
+    earlier: list[tuple[float, float]], new: tuple[float, float], believed: bool
+) -> None:
+    positions = Positions(hold=4)
+    for position_time, km in earlier:
+        positions.check([north("a", position_time, km)])
+    [shown] = positions.check([north("a", *new)])
+    expected = new if believed else earlier[-1]
+    assert (shown.position_time, round(haversine_km(61.5, 24.0, shown.latitude, shown.longitude), 6)) == expected
+
+
+@pytest.mark.parametrize(("interval", "updates"), [(15, 4), (20, 3), (25, 3), (45, 2), (60, 1), (600, 1)])
+def test_updates_to_hold_cover_at_least_a_minute_or_one_update_when_they_come_further_apart(interval: int, updates: int) -> None:
+    assert updates_to_hold(interval) == updates
+
+
+# Missing for no more updates than the hold, as when adsb.fi fails once, an aircraft is remembered, and its false position left
+# out. One update more forgets it.
+@pytest.mark.parametrize(
+    ("hold", "missing", "remembered"),
+    [(1, 0, True), (1, 1, True), (1, 2, False), (2, 2, True), (2, 3, False), (4, 4, True), (4, 5, False)],
+)
+def test_an_aircraft_missing_from_more_than_the_holds_updates_in_a_row_is_forgotten(hold: int, missing: int, remembered: bool) -> None:
+    positions = Positions(hold=hold)
+    positions.check([north("a", 1000, 0)])
+    for _ in range(missing):
+        positions.check([north("b", 1000, 0)])
+    [shown] = positions.check([north("a", 1015 + 15 * missing, 389)])
+    assert shown.position_time == (1000 if remembered else 1015 + 15 * missing)
+
+
+# A trail goes on from its last point by the same limit, and a point out of its reach, a jump believed after its hold, starts it
+# anew. A point no newer than its last is never added, out of reach or not.
+@pytest.mark.parametrize(
+    ("new", "times"),
+    [
+        ((1030, 15.4), [1000, 1015, 1030]),
+        ((1030, 15.5), [1030]),
+        ((1030, 389), [1030]),
+        ((1075, 46.6), [1000, 1015, 1075]),
+        ((1075, 46.8), [1075]),
+        ((1010, 389), [1000, 1015]),
+    ],
+    ids=[
+        "within reach",
+        "just out of reach",
+        "a believed jump",
+        "within reach a minute later",
+        "out of reach a minute later",
+        "an older point out of reach",
+    ],
+)
+def test_a_trail_starts_anew_at_a_point_out_of_its_reach(new: tuple[float, float], times: list[float]) -> None:
+    trails = Trails()
+    trails.update([north("a", 1000, -15)], now=1000, minutes=5)
+    trails.update([north("a", 1015, 0)], now=1015, minutes=5)
+    trails.update([north("a", *new)], now=max(new[0], 1015), minutes=5)
+    assert [point[0] for point in trails.points["a"]] == times
+
+
+def test_a_jump_left_out_for_its_updates_in_a_row_is_believed() -> None:
+    positions = Positions(hold=2)
+    fixes = [(1000, 0), (1015, 389), (1030, 7), (1045, 389), (1060, 389), (1075, 389), (1090, 0)]
+    shown = [positions.check([north("a", position_time, km)])[0].position_time for position_time, km in fixes]
+    # A believable fix starts the count again, and after the jump is believed, the way back is the jump.
+    assert shown == [1000, 1000, 1030, 1030, 1030, 1075, 1075]
+
+
+def test_an_update_an_aircraft_is_missing_from_doesnt_start_its_count_again() -> None:
+    positions = Positions(hold=2)
+    shown = []
+    for update in ([(1000, 0)], [(1015, 389)], [], [(1045, 389)], [(1060, 389)]):
+        result = positions.check([north("a", position_time, km) for position_time, km in update])
+        shown.extend(plane.position_time for plane in result)
+    # Like a failed update, a missing one changes nothing, so the second update that leaves the jump out is the last.
+    assert shown == [1000, 1000, 1000, 1060]
+
+
+def test_an_aircraft_at_a_false_position_stays_where_it_was_believable() -> None:
+    positions = Positions(hold=4)
+    trails = Trails()
+    for update in (
+        [north("a", 1000, 0, "mlat", alt_baro=35000)],
+        [north("a", 1015, 389, "adsb", alt_baro=35025)],
+        [north("a", 1030, 7, "mlat", alt_baro=35050)],
+    ):
+        shown = positions.check(update)
+        trails.update(shown, shown[0].position_time + 1, minutes=5)
+        if update[0].position_time == 1015:
+            [stays] = shown
+            assert (stays.latitude, stays.longitude, stays.position_time, stays.source) == (61.5, 24.0, 1000, "mlat")
+            assert stays.altitude_ft == 35025, "everything but the position is the new report's"
+    assert [plane.position_time for plane in shown] == [1030], "the next fix is measured from the believable one, not the false"
+    assert trails.line("a") == [[24.0, 61.5], [24.0, round(61.5 + 7 / KM_PER_DEGREE_LATITUDE, 5)]], "the trail leaves it out"
+
+
+def test_the_receivers_position_wins_and_adsb_fis_stands_in_for_a_false_one() -> None:
+    positions = Positions(hold=4)
+    first = positions.check([north("a", 1000, 0, "mlat"), north("b", 1000, 50, "adsb_fi"), north("a", 1000, 0.3, "adsb_fi")])
+    assert [(plane.hex, plane.source) for plane in first] == [("a", "mlat"), ("b", "adsb_fi")], "one aircraft for each address"
+
+    [stand_in] = positions.check([north("a", 1015, 389, "adsb"), north("a", 1015, 3.5, "adsb_fi")])
+    assert (stand_in.source, stand_in.position_time) == ("adsb_fi", 1015)
+    assert "b" in positions.last, "an aircraft missing from no more updates than the hold is remembered"
+
+    [held] = positions.check([north("a", 1030, 389, "adsb", alt_baro=35100), north("a", 1030, 380, "adsb_fi")])
+    assert (held.source, held.position_time, held.altitude_ft) == ("adsb_fi", 1015, 35100), "the receiver's report, held"
+
+    [both] = positions.check([north("a", 1045, 3.6, "adsb"), north("a", 1045, 3.7, "adsb_fi")])
+    assert (both.source, both.position_time) == ("adsb", 1045), "the receiver's, when both are believable"
 
 
 def test_receiver_health_from_its_statistics() -> None:

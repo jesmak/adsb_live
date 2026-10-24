@@ -18,7 +18,7 @@ from custom_components.adsb_live.api import DETAILS_CLIENT, PLANESPOTTERS_API, R
 from custom_components.adsb_live.const import DOMAIN
 from custom_components.adsb_live.coordinator import FeedCoordinator
 
-from .conftest import AREA, RECEIVER, RECEIVER_URL, local_aircraft, receiver_entry, stats
+from .conftest import ADSB_FI_URL, AREA, RECEIVER, RECEIVER_URL, adsb_fi_aircraft, local_aircraft, receiver_entry, stats
 
 FEED_ENTITY = "sensor.aircraft_near_tampere"
 EVENTS_ENTITY = "event.aircraft_near_tampere_aircraft_events"
@@ -268,10 +268,9 @@ async def test_an_event_fires_once_while_the_aircraft_stays_in_its_state(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: FrozenDateTimeFactory
 ) -> None:
     events = await automation(hass)
-    mock_receiver(aioclient_mock)
+    # In their states from the first update, as an aircraft can't fly to the overhead position in a moment.
+    mock_receiver(aioclient_mock, aircraft_with(**EVENTFUL))
     _, coordinator = await set_up(hass)
-
-    await refresh(hass, aioclient_mock, coordinator, aircraft_with(**EVENTFUL))
     assert sorted(events.types()) == [("emergency", "46a1b2"), ("military", "461f00"), ("overhead", "461f00")]
     emergency = next(data for event_type, data in events.fired if event_type == "emergency")
     assert emergency["name"] == "EXA123"
@@ -530,3 +529,105 @@ async def test_ten_minutes_out_of_the_state_rearms_at_any_interval(
         freezer.tick(timedelta(seconds=interval))
         await refresh(hass, aioclient_mock, coordinator, aircraft_with(**EVENTFUL))
         assert bool(events.fired) is fires, f"out for {missed * interval} s"
+
+
+async def test_a_false_position_leaves_the_aircraft_where_it_was_believable(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: FrozenDateTimeFactory
+) -> None:
+    feed = {
+        "area": AREA,
+        "adsb_fi": True,
+        "refresh_seconds": 15,
+        "trail_minutes": 5,
+        "color_by_altitude": True,
+        "overhead_radius_km": 5,
+        "overhead_altitude": 1500,
+        "overhead_altitude_unit": "m",
+    }
+
+    async def update(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, Any]:
+        aioclient_mock.clear_requests()
+        mock_receiver(aioclient_mock, aircraft_with(**{"461f00": local}))
+        aioclient_mock.get(ADSB_FI_URL, json=remote)
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+        features = hass.states.get(FEED_ENTITY).attributes["geojson"]["features"]
+        return {feature["id"]: feature for feature in features}
+
+    def source(feature: dict[str, Any]) -> str:
+        return next(row["value"] for row in feature["properties"]["details"] if row["label"] == "Source")
+
+    events = await automation(hass)
+    # The light aircraft 50 km north of the area's centre, which is also the receiver.
+    mock_receiver(aioclient_mock, aircraft_with(**{"461f00": {"lat": 61.95, "lon": 23.7}}))
+    aioclient_mock.get(ADSB_FI_URL, json=adsb_fi_aircraft())
+    _, coordinator = await set_up(hass, feed)
+    assert hass.states.get(FEED_ENTITY).state == "4"
+
+    # 15 seconds later, falsely above the centre, where it would be overhead.
+    freezer.tick(timedelta(seconds=15))
+    features = await update({"lat": 61.4978, "lon": 23.761, "alt_baro": 2600}, adsb_fi_aircraft())
+    held = features["aircraft:461f00"]
+    assert held["geometry"]["coordinates"] == [23.7, 61.95]
+    assert held["properties"]["altitude_ft"] == 2600, "the rest is the new report's"
+    assert source(held) == "MLAT", "the believable position's source"
+    assert "aircraft:461f00/trail" not in features
+    assert events.fired == [], "no overhead event at the false position"
+    assert hass.states.get(NEAREST_ENTITY).state == "EXA123", "not the light aircraft, which would be right above the centre"
+
+    # Falsely far outside the area, which doesn't take it out of the feed.
+    freezer.tick(timedelta(seconds=15))
+    features = await update({"lat": 65.45, "lon": 23.7}, adsb_fi_aircraft())
+    assert hass.states.get(FEED_ENTITY).state == "4"
+    assert features["aircraft:461f00"]["geometry"]["coordinates"] == [23.7, 61.95]
+
+    # Still false from the receiver, while adsb.fi has it 3 km on: adsb.fi's position stands in.
+    freezer.tick(timedelta(seconds=15))
+    remote = adsb_fi_aircraft()
+    remote["ac"].append({"hex": "461f00", "type": "mlat", "alt_baro": 2600, "lat": 61.977, "lon": 23.7, "seen_pos": 1, "seen": 1})
+    features = await update({"lat": 65.45, "lon": 23.7}, remote)
+    standing_in = features["aircraft:461f00"]
+    assert standing_in["geometry"]["coordinates"] == [23.7, 61.977]
+    assert source(standing_in) == "adsb.fi"
+    assert features["aircraft:461f00/trail"]["geometry"]["coordinates"] == [[23.7, 61.95], [23.7, 61.977]]
+    assert events.fired == []
+
+
+@pytest.mark.parametrize(("interval", "hold"), [(15, 4), (60, 1)])
+async def test_a_jump_left_out_for_the_feeds_hold_is_believed_with_a_new_trail(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: FrozenDateTimeFactory, interval: int, hold: int
+) -> None:
+    feed = {
+        "area": AREA,
+        "adsb_fi": False,
+        "refresh_seconds": interval,
+        "trail_minutes": 5,
+        "color_by_altitude": True,
+        "overhead_radius_km": 5,
+        "overhead_altitude": 1500,
+        "overhead_altitude_unit": "m",
+    }
+
+    async def update(latitude: float) -> dict[str, Any]:
+        freezer.tick(timedelta(seconds=interval))
+        aioclient_mock.clear_requests()
+        mock_receiver(aioclient_mock, aircraft_with(**{"461f00": {"lat": latitude, "lon": 23.7}}))
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+        features = hass.states.get(FEED_ENTITY).attributes["geojson"]["features"]
+        return {feature["id"]: feature for feature in features}
+
+    # The light aircraft 50 km north of the centre, then a kilometre on, which makes its trail.
+    mock_receiver(aioclient_mock, aircraft_with(**{"461f00": {"lat": 61.95, "lon": 23.7}}))
+    _, coordinator = await set_up(hass, feed)
+    features = await update(61.96)
+    assert "aircraft:461f00/trail" in features
+
+    # Then 106 km south, inside the area, beyond what it can fly in any of these intervals: left out for the hold.
+    for _ in range(hold):
+        features = await update(61.0)
+        assert features["aircraft:461f00"]["geometry"]["coordinates"] == [23.7, 61.96]
+        assert features["aircraft:461f00/trail"]["geometry"]["coordinates"] == [[23.7, 61.95], [23.7, 61.96]]
+    features = await update(61.0)
+    assert features["aircraft:461f00"]["geometry"]["coordinates"] == [23.7, 61.0], "believed after the hold"
+    assert "aircraft:461f00/trail" not in features, "its trail starts anew at the believed position"
