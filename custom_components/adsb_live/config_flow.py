@@ -123,13 +123,13 @@ class AdsbLiveConfigFlow(ConfigFlow, domain=DOMAIN):
             # Only a new address is checked, so the language or unit can be changed while the receiver is off.
             errors = await self._async_check_receiver(data[CONF_URL]) if data[CONF_URL] != entry.data[CONF_URL] else {}
             if not errors:
-                # An entry with an update listener (__init__.py) is reloaded by it. One without, whose setup failed
-                # or hasn't finished, would keep its old settings until it is next set up, which is up to ten minutes
-                # away in setup retry and never after a setup error, so it is reloaded now. The listener is looked for
-                # before the update, which starts its reload at once.
-                has_listener = bool(entry.update_listeners)
+                # An entry with an update listener (__init__.py) is reloaded by it, and a setup still running reloads
+                # it when it finishes setting up. One whose setup failed would keep its old settings until it is next
+                # set up, which is up to ten minutes away in setup retry and never after a setup error, so it is
+                # reloaded now. The listener is looked for before the update, which starts its reload at once.
+                reload = not entry.update_listeners and entry.state is not ConfigEntryState.SETUP_IN_PROGRESS
                 self.hass.config_entries.async_update_entry(entry, unique_id=receiver_id, data=data)
-                if not has_listener:
+                if reload:
                     self.hass.config_entries.async_schedule_reload(entry.entry_id)
                 return self.async_abort(reason="reconfigure_successful")
 

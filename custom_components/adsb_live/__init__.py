@@ -35,6 +35,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool:
+    # A change saved before the update listener is added below has nothing to reload the entry, so it is looked for then.
+    modified = entry.modified_at
     integration = await async_get_integration(hass, DOMAIN)
     session = async_get_clientsession(hass)
     client = ReceiverClient(session)
@@ -74,6 +76,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
 
     # Adding, changing or removing a feed (subentry), or changing the receiver's settings, reloads everything.
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    if entry.modified_at != modified:
+        hass.config_entries.async_schedule_reload(entry.entry_id)
     return True
 
 

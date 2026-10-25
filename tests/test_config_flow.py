@@ -249,6 +249,44 @@ async def test_reconfiguring_a_receiver_waiting_to_retry_loads_it_now(hass: Home
     assert hass.states.get("sensor.aircraft_near_tampere").state == "3"
 
 
+@pytest.mark.parametrize("state", ["setting_up", "setup_error"])
+async def test_reconfiguring_sets_the_receiver_up_once_with_the_new_settings(
+    hass: HomeAssistant, receiver_api: AiohttpClientMocker, monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    """Saved while setup still runs, its own check reloads the entry. After a setup error, the flow does."""
+    entry = receiver_entry(hass)
+    forward = hass.config_entries.async_forward_entry_setups
+    setups = []
+
+    async def reconfigure() -> None:
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id})
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"url": RECEIVER_URL, "language": "fi", "altitude_unit": "m"}
+        )
+        assert result["reason"] == "reconfigure_successful"
+
+    async def count_setups(entry, platforms) -> None:
+        setups.append(entry.data["language"])
+        if state == "setting_up" and len(setups) == 1:
+            await reconfigure()
+        await forward(entry, platforms)
+
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", count_setups)
+    if state == "setup_error":
+        with monkeypatch.context() as broken:
+            broken.setattr("custom_components.adsb_live.Receiver.from_json", lambda *args: 1 / 0)
+            await hass.config_entries.async_setup(entry.entry_id)
+            await hass.async_block_till_done()
+        assert entry.state is ConfigEntryState.SETUP_ERROR
+        await reconfigure()
+    else:
+        await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert setups == (["en", "fi"] if state == "setting_up" else ["fi"]), "set up once with the new settings, not again on top"
+
+
 async def test_feet_are_the_default_under_us_units(hass: HomeAssistant) -> None:
     hass.config.units = US_CUSTOMARY_SYSTEM
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})

@@ -5,13 +5,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from types import MappingProxyType
 from typing import Any
 
 import aiohttp
 import pytest
-from homeassistant.config_entries import SOURCE_RECONFIGURE, ConfigEntryState, ConfigSubentryData
+from homeassistant.config_entries import SOURCE_RECONFIGURE, ConfigEntryState, ConfigSubentry, ConfigSubentryData
 from homeassistant.const import MATCH_ALL, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -43,6 +45,39 @@ def mock_receiver(aioclient_mock: AiohttpClientMocker, url: str = RECEIVER_URL, 
     aioclient_mock.get(f"{url}/data/receiver.json", json=RECEIVER)
     aioclient_mock.get(f"{url}/data/aircraft.json", json=aircraft or local_aircraft())
     aioclient_mock.get(f"{url}/data/stats.json", json=stats())
+
+
+@pytest.mark.parametrize("change", ["data", "subentry"])
+async def test_a_change_saved_while_setting_up_is_applied(
+    hass: HomeAssistant, receiver_api: AiohttpClientMocker, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    entry = receiver_entry(hass)
+    [feed] = entry.subentries.values()
+    added = ConfigSubentry(data=MappingProxyType(dict(feed.data)), subentry_type="feed", title=f"{feed.title} 2", unique_id=None)
+    forward = hass.config_entries.async_forward_entry_setups
+    setups = []
+
+    async def save_while_setting_up(entry: MockConfigEntry, platforms) -> None:
+        # Saved as a flow would save it, before setup has added its update listener.
+        if not setups:
+            if change == "data":
+                hass.config_entries.async_update_entry(entry, data={**entry.data, "language": "fi"})
+            else:
+                hass.config_entries.async_add_subentry(entry, added)
+        setups.append(entry.runtime_data)
+        await forward(entry, platforms)
+
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", save_while_setting_up)
+    # Not asserted: the reload may already be under way when the setup returns.
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert len(setups) == 2, "set up again with the change"
+    if change == "data":
+        assert entry.runtime_data.texts.number(2.5, 1) == "2,5"
+    else:
+        assert added.subentry_id in entry.runtime_data.feeds
 
 
 async def test_a_receiver_gets_its_health_sensors(hass: HomeAssistant, receiver_api: AiohttpClientMocker) -> None:
@@ -248,7 +283,16 @@ async def test_the_feeds_of_every_receiver_take_turns_with_adsb_fi(hass: HomeAss
     await hass.async_block_till_done()
     assert all(entry.state is ConfigEntryState.LOADED for entry in entries)
 
-    for entity_id in ("sensor.aircraft_near_tampere", "sensor.aircraft_near_tampere_2", "sensor.aircraft_near_tampere_3"):
+    # Two feeds share a name, so which one gets which entity id depends on the order they're set up in. A feed's map
+    # feed sensor has the feed's id as its own.
+    feeds = [
+        registry_entry.entity_id
+        for entry in entries
+        for registry_entry in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        if registry_entry.unique_id == registry_entry.config_subentry_id
+    ]
+    assert len(feeds) == 3
+    for entity_id in feeds:
         assert hass.states.get(entity_id).state == "4", entity_id
     assert len(times) == 3
     gaps = [later - earlier for earlier, later in zip(times, times[1:], strict=False)]
