@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 import pytest
-from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.config_entries import ConfigEntryDisabler, ConfigSubentryData
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
@@ -197,6 +197,7 @@ def receiver_entry(
     feeds: int = 1,
     url: str = RECEIVER_URL,
     feed: dict[str, Any] | None = None,
+    disabled: bool = False,
 ) -> MockConfigEntry:
     """A receiver with feeds around Tampere: "Aircraft near Tampere", then "Aircraft near Tampere 2" and so on.
 
@@ -218,6 +219,7 @@ def receiver_entry(
         # As the config flow makes it: the address without a login.
         unique_id=without_login(url),
         data={"url": url, "language": "en", "altitude_unit": "m"},
+        disabled_by=ConfigEntryDisabler.USER if disabled else None,
         subentries_data=[
             ConfigSubentryData(
                 subentry_type="feed",

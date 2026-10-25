@@ -5,8 +5,8 @@ community network knows, into map feeds, with sensors for the receiver's health.
 
 [![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![HACS][hacs-shield]][hacs] [![License][license-shield]](LICENSE)
 
-<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-light.png#gh-light-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, the nearest aircraft as a tile, and the receiver's state on adsb-receiver-card with its day of aircraft tracked">
-<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-dark.png#gh-dark-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, the nearest aircraft as a tile, and the receiver's state on adsb-receiver-card with its day of aircraft tracked">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-light.png#gh-light-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, the nearest aircraft as a tile, and the receiver's state on the receiver card with its day of aircraft tracked">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-dark.png#gh-dark-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, the nearest aircraft as a tile, and the receiver's state on the receiver card with its day of aircraft tracked">
 
 The aircraft in the picture are made up.
 
@@ -23,7 +23,7 @@ Show the feeds on a map with [map-feed-card](https://github.com/jesmak/map-feed-
 silhouette of its kind (1.1.0 or newer, the turboprop 1.2.0), heading the way it flies, with its trail, and shows its
 details beside the map or in a list, with its route and a photo when it is opened. The feed format is documented in
 [map-feed-format.md](https://github.com/jesmak/map-feed-card/blob/main/docs/map-feed-format.md). The receiver's own
-health has a card of its own, [adsb-receiver-card](https://github.com/jesmak/adsb-receiver-card).
+health has a card of its own, the [receiver card](#receiver-card), which comes with the integration.
 
 A receiver hears only what its antenna can see. A feed can add the aircraft [adsb.fi](https://adsb.fi/) knows around
 the same area, from the receivers of its community, so the map shows the traffic your own antenna misses.
@@ -197,8 +197,7 @@ row out. Both answers are kept for a day.
 ### `adsb_live.get_receiver_aircraft`
 
 Returns the aircraft the receiver itself has heard in the last minute, with a position or without, and never those only
-adsb.fi knows. [adsb-receiver-card](https://github.com/jesmak/adsb-receiver-card) calls it while its list of aircraft
-is open.
+adsb.fi knows. The [receiver card](#receiver-card) calls it while its list of aircraft is open.
 
 | Field    | Description            |
 | -------- | ---------------------- |
@@ -210,6 +209,98 @@ whether it has a position from the last minute. `registration`, `type` (its ICAO
 `altitude`, `speed_kmh` (its ground speed) and `rssi` (the signal in dBFS) are there when readsb knows them. An aircraft
 on the ground has `on_ground`, true, and no altitude. As in the feeds, what transmits a category of set C is left out.
 An answer is kept for 5 seconds, so dashboards open side by side read the receiver once.
+
+## Receiver card
+
+<p>
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-full-light.png#gh-light-mode-only" width="400" alt="A receiver hearing 412.6 messages a second, tracking 9 aircraft, 7 of them with a position, with a range of 214 km, a curve of the last day that dips at night, its signal well above the noise, and Flightradar24 connected with 7 aircraft">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-full-dark.png#gh-dark-mode-only" width="400" alt="A receiver hearing 412.6 messages a second, tracking 9 aircraft, 7 of them with a position, with a range of 214 km, a curve of the last day that dips at night, its signal well above the noise, and Flightradar24 connected with 7 aircraft">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-compact-light.png#gh-light-mode-only" width="400" alt="The same receiver on one row, receiving, with 9 aircraft tracked, 7 with a position, 412.6 messages a second and a small curve of the last day">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-compact-dark.png#gh-dark-mode-only" width="400" alt="The same receiver on one row, receiving, with 9 aircraft tracked, 7 with a position, 412.6 messages a second and a small curve of the last day">
+</p>
+
+The integration comes with a dashboard card for a receiver's health. You pick the receiver, and the card finds its
+sensors by itself. The aircraft themselves are drawn on a map by map-feed-card. This card is about the antenna.
+
+An antenna that hears nothing looks the same as an empty sky, so the card puts the numbers that tell them apart in one
+place: messages and positions coming in, the aircraft tracked with and without a position, the longest range of the
+last quarter of an hour, and how far the signal rises above the noise. A curve of the aircraft tracked over the last day
+shows whether a quiet moment is the time of day or something new. A list of the aircraft the receiver hears opens under
+it.
+
+Most receivers also feed Flightradar24 or another network through a feeder of its own, such as fr24feed. Its status can
+be added as rows under the receiver, from whatever entities you have for it.
+
+The compact layout puts the receiver on one row with a small curve, for a corner of another view.
+
+The integration serves the card itself and adds it to the dashboards' resources when it starts, so the card is always
+the integration's own version. With the resources set in YAML (`resource_mode: yaml`), it can't add or update
+itself, and the log says which line to add, change or remove.
+
+### Card options
+
+| Name         | Type    | Description                                                                                           | Default  |
+| ------------ | ------- | ----------------------------------------------------------------------------------------------------- | -------- |
+| `type`       | string  | `custom:adsb-receiver-card`                                                                           | required |
+| `device`     | string  | The receiver's device                                                                                 | required |
+| `name`       | string  | Replaces the receiver's name                                                                          |          |
+| `layout`     | string  | `full`, or `compact` for one row                                                                      | `full`   |
+| `feeders`    | list    | Other feeders' status as rows under the receiver, in `full` only                                      |          |
+| `list_open`  | boolean | Whether the list of aircraft heard is open when the card is shown                                     | `false`  |
+| `max_height` | number  | The most the card grows to, in pixels, with only the list of aircraft scrolling (see [Sizes](#sizes)) |          |
+
+Each item of `feeders` has these keys:
+
+| Name     | Type   | Description                                                                                                                                                                                         |
+| -------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entity` | string | Whether the feeder is up. Its state is shown, with a green dot when it is on or connected, red when it is off or disconnected. A problem binary sensor reads the other way round, red when it is on |
+| `name`   | string | Replaces the entity's name                                                                                                                                                                          |
+| `detail` | string | A second entity whose state is shown after the first, such as the aircraft the feeder reports                                                                                                       |
+
+Everything can be set in the card's visual editor, where the device picker offers only receivers.
+
+### What the card shows
+
+- **The status.** Receiving, in green, while positions come in. Quiet, in grey, when none do. That is usually an empty
+  sky, and an aircraft heard without a position counts as quiet too, as it may simply not send one. Unavailable, in
+  red, when the positions sensor is unavailable or disabled, as it is when the integration can't reach readsb. The
+  numbers, the curve, the meter and the list of aircraft are then left out.
+- **Messages per second and positions per minute** under the status, and the receiver's readsb version.
+- **The aircraft tracked**, with a position or without, how many of them have a position, and the longest range in the
+  last 15 minutes. Clicking a number opens its sensor.
+- **The curve** of aircraft tracked over the last 24 hours, from Home Assistant's long-term statistics, each hour's
+  mean with the present value at the end. The peak under it is the most tracked at once. A curve's top is never below
+  4, so a sky of one aircraft doesn't look as full as a busy one. A receiver added in the last hour has only the
+  present value, shown as a dot at the end.
+- **Signal and noise** on a meter from −50 to 0 dBFS, the gap between them shaded. A signal close to the noise means
+  the antenna hears little. After a minute without messages the signal is unknown and only the noise is shown. A
+  receiver that gets its messages over the network rather than from a radio of its own has neither, and no meter.
+- **The aircraft heard**, a list folded under the meter. It holds the aircraft the receiver itself has heard in the last
+  minute, never those only adsb.fi adds to a map, heard last first. Each row has the aircraft's callsign, or its
+  registration or address, and type, its altitude, its ground speed, how long ago it was heard, and its signal on the
+  meter's scale. An icon after the type says whether its position is known, and one without a position is dimmed. The
+  list is read with [`adsb_live.get_receiver_aircraft`](#adsb_liveget_receiver_aircraft) every 10 seconds, and only
+  while it is open.
+- **The feeders**, a row each.
+
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-list-light.png#gh-light-mode-only" width="410" alt="The receiver with its list of aircraft heard open: nine aircraft, heard last first, each with its callsign or registration, type, ground speed, how long ago it was heard, altitude and signal, the two without a position dimmed">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-list-dark.png#gh-dark-mode-only" width="410" alt="The receiver with its list of aircraft heard open: nine aircraft, heard last first, each with its callsign or registration, type, ground speed, how long ago it was heard, altitude and signal, the two without a position dimmed">
+
+In the compact layout the row shows the status, the aircraft tracked, those with a position and the messages per
+second, with the curve on the right. Clicking it opens the aircraft tracked sensor. It has no list of aircraft.
+
+### Sizes
+
+In a sections view the card takes a whole section by default and can be made as narrow as half of one. On a narrow
+card the readsb version goes under the rates, and a label too long for its column wraps. In the compact layout the
+curve is left out below 280 px, so the texts keep their room.
+
+An open list of aircraft makes the card as tall as the list. With `max_height` the card grows to that many pixels at
+most and only the list scrolls inside it. In a sections view, rows set to a number give the card its height instead,
+and the list scrolls inside that.
+
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-quiet-narrow-light.png#gh-light-mode-only" width="260" alt="A quiet receiver on a card half a section wide, tracking one aircraft without a position, its version under the rates and its range label on two lines">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-quiet-narrow-dark.png#gh-dark-mode-only" width="260" alt="A quiet receiver on a card half a section wide, tracking one aircraft without a position, its version under the rates and its range label on two lines">
 
 ## Examples
 
@@ -267,6 +358,36 @@ actions:
               {{ trigger.to_state.attributes.distance_km }} km away.
 ```
 
+The receiver card with Flightradar24 as a row under it. fr24feed's own status page, `monitor.json` on port 8754, can be
+read into Home Assistant with a REST sensor, and its `feed_status` turned into a connectivity binary sensor:
+
+```yaml
+type: custom:adsb-receiver-card
+device: 0123456789abcdef0123456789abcdef
+feeders:
+    - entity: binary_sensor.fr24feed_link
+      name: Flightradar24
+      detail: sensor.fr24feed_reported_aircraft
+```
+
+The receiver on one row, for a corner of another view:
+
+```yaml
+type: custom:adsb-receiver-card
+device: 0123456789abcdef0123456789abcdef
+layout: compact
+```
+
+Device ids are easiest to pick in the card's visual editor.
+
+## Upgrading from the separate ADS-B receiver card
+
+The receiver card used to be a repository of its own, ADS-B receiver card. It now comes with the integration, and the
+separate repository has been removed. If you installed it, remove it in HACS, and check that its resource
+(`/hacsfiles/adsb-receiver-card/…`) is gone from Settings › Dashboards › Resources. Until it is, the log warns about it
+at every start, the card picker may list the card twice, and the browser's console may show an error from the separate
+card. Your dashboards need no changes, as the card's type stays `custom:adsb-receiver-card`.
+
 ## Data
 
 The receiver's data is your own. The registrations, types, operators and military flags come from the aircraft
@@ -292,6 +413,9 @@ shown large, links to its page there, its answers are kept for a day at most, an
 that shows it, straight from Planespotters, never stored or passed on by the integration. The requests carry the same
 User-Agent as adsb.fi's, and the photo's request carries the aircraft's address.
 
+The receiver card shows the integration's sensors, and its curve comes from Home Assistant's own statistics of them. It
+fetches nothing from outside Home Assistant.
+
 Keep areas to what a map shows at once. A feed of a hundred aircraft with trails is several tens of kilobytes, which
 Home Assistant sends to every open dashboard on each update.
 
@@ -306,6 +430,10 @@ tests check that every language has the same keys and placeholders as English, a
 selector and `texts/` list the same languages. Callsigns, registrations, types and operators come from the
 receiver as they are.
 
+The receiver card's texts are in `frontend/src/localize/languages/`, one JSON file per language. The card finds a new
+file by itself and uses it when Home Assistant is set to that language. A text left out falls back to English. A
+feeder's state comes from Home Assistant's own translations.
+
 ## Development
 
 Requires Python 3.14.
@@ -317,6 +445,19 @@ python3.14 -m venv .venv
 .venv/bin/ruff check .
 .venv/bin/ruff format --check .
 ```
+
+The receiver card is in `frontend/` and requires Node 22.13 or newer:
+
+```
+cd frontend
+npm install
+npm run check
+```
+
+`npm run check` typechecks, lints, checks formatting, runs the tests and builds
+`custom_components/adsb_live/www/adsb-receiver-card.js`, which is the file the integration serves and is committed to
+the repository. The card carries the integration's version from `manifest.json`. To have git refuse a commit whose
+built card doesn't match `frontend/`, run `git config core.hooksPath .githooks` once.
 
 | Path                                | What it contains                                                                                                       |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -333,6 +474,9 @@ python3.14 -m venv .venv
 | `api.py`                            | The receiver's HTTP client, adsb.fi's, which every feed shares for its request spacing, and the route and photo client |
 | `texts.py`, `texts/<language>.json` | Texts written into feeds                                                                                               |
 | `translations/<language>.json`      | Home Assistant UI texts                                                                                                |
+| `card.py`, `www/`                   | Serving the receiver card and adding it to the dashboards' resources                                                   |
+| `frontend/`                         | The receiver card's source, tests and build                                                                            |
+| `docs/screenshots.json`             | The made-up data the README's screenshots are taken from                                                               |
 
 ## Support
 

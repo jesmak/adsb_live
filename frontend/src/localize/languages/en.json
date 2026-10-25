@@ -1,0 +1,69 @@
+{
+    "common": {
+        "name": "ADS-B receiver",
+        "description": "The state of an ADS-B receiver from the ADS-B Live integration",
+        "invalid_configuration": "Invalid configuration. Pick a receiver.",
+        "no_receiver": "Receiver not found",
+        "no_entity": "Entity {entity} not found"
+    },
+    "status": {
+        "receiving": "Receiving",
+        "quiet": "Quiet",
+        "unavailable": "Unavailable"
+    },
+    "rates": {
+        "messages": "{value} msg/s",
+        "positions": "{value} positions/min",
+        "positions_one": "{value} position/min"
+    },
+    "figures": {
+        "tracked": "tracked",
+        "with_position": "with a position",
+        "range": "range, {minutes} min"
+    },
+    "curve": {
+        "past": "{hours} h ago",
+        "now": "now",
+        "peak": "peak {value}"
+    },
+    "meter": {
+        "signal": "Signal",
+        "noise": "Noise",
+        "signal_unknown": "Signal unknown"
+    },
+    "list": {
+        "title": "Aircraft heard",
+        "name_type": "Callsign · type",
+        "altitude": "Altitude",
+        "signal": "Signal",
+        "located": "Position known",
+        "not_located": "No position",
+        "ground": "on the ground",
+        "now": "now",
+        "seconds": "{value} s",
+        "minutes": "{value} min",
+        "speed": "{value} km/h",
+        "empty": "No aircraft heard in the last minute",
+        "failed": "The aircraft couldn't be read"
+    },
+    "editor": {
+        "device": "Receiver",
+        "name": "Name",
+        "name_helper": "Replaces the receiver's name",
+        "layout": "Layout",
+        "layout_full": "Full",
+        "layout_compact": "Compact, one row",
+        "list_open": "Aircraft list open at first",
+        "list_open_helper": "Otherwise the list opens from its heading",
+        "max_height": "Maximum height",
+        "max_height_helper": "In pixels. Only the aircraft list scrolls inside it. In a sections view, a set number of rows wins.",
+        "feeders": "Feeders",
+        "feeders_helper": "Other feeders' status as rows under the receiver, such as Flightradar24's. Shown in the full layout.",
+        "feeder_entity": "Status",
+        "feeder_entity_helper": "Whether the feeder is up",
+        "feeder_name": "Name",
+        "feeder_name_helper": "Replaces the entity's name",
+        "feeder_detail": "Detail",
+        "feeder_detail_helper": "Shown after the status, such as the aircraft the feeder reports"
+    }
+}

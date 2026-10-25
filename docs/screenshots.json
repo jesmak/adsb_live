@@ -1,7 +1,7 @@
 {
   "resources": [
     "../../hass-cards/map-feed-card/dist/map-feed-card.js",
-    "https://raw.githubusercontent.com/jesmak/adsb-receiver-card/main/dist/adsb-receiver-card.js"
+    "custom_components/adsb_live/www/adsb-receiver-card.js"
   ],
   "clock": "2026-06-12T14:20:00+03:00",
   "states": {
@@ -1066,6 +1066,108 @@
       ]
     }
   },
+  "services": {
+    "adsb_live.get_receiver_aircraft": {
+      "altitude_unit": "m",
+      "aircraft": [
+        {
+          "hex": "46a1c4",
+          "name": "EXA481",
+          "registration": "OH-ZZD",
+          "type": "E190",
+          "altitude": 730,
+          "speed_kmh": 296,
+          "rssi": -6.1,
+          "heard": "2026-06-12T11:19:59+00:00",
+          "position": true
+        },
+        {
+          "hex": "462000",
+          "name": "EXA456",
+          "registration": "OH-ZZC",
+          "type": "A321",
+          "on_ground": true,
+          "speed_kmh": 22,
+          "rssi": -9.8,
+          "heard": "2026-06-12T11:20:00+00:00",
+          "position": true
+        },
+        {
+          "hex": "461f00",
+          "name": "OH-ZZB",
+          "registration": "OH-ZZB",
+          "type": "C172",
+          "altitude": 760,
+          "speed_kmh": 176,
+          "rssi": -24.3,
+          "heard": "2026-06-12T11:19:52+00:00",
+          "position": true
+        },
+        {
+          "hex": "46a1d7",
+          "name": "EXA77",
+          "registration": "OH-ZZE",
+          "type": "AT75",
+          "altitude": 2990,
+          "speed_kmh": 454,
+          "rssi": -14.7,
+          "heard": "2026-06-12T11:20:00+00:00",
+          "position": true
+        },
+        {
+          "hex": "461f10",
+          "name": "OHZZH",
+          "registration": "OH-ZZH",
+          "type": "EC35",
+          "altitude": 370,
+          "speed_kmh": 204,
+          "rssi": -21.0,
+          "heard": "2026-06-12T11:19:58+00:00",
+          "position": true
+        },
+        {
+          "hex": "461f20",
+          "name": "OH-ZZG",
+          "registration": "OH-ZZG",
+          "type": "GLID",
+          "altitude": 1310,
+          "speed_kmh": 89,
+          "rssi": -27.6,
+          "heard": "2026-06-12T11:19:41+00:00",
+          "position": true
+        },
+        {
+          "hex": "4ca8e1",
+          "name": "EXD905",
+          "registration": "EI-ZZF",
+          "type": "B738",
+          "altitude": 6710,
+          "speed_kmh": 719,
+          "rssi": -25.9,
+          "heard": "2026-06-12T11:19:57+00:00",
+          "position": true
+        },
+        {
+          "hex": "461f30",
+          "name": "OH-ZZJ",
+          "registration": "OH-ZZJ",
+          "type": "P28A",
+          "altitude": 910,
+          "rssi": -30.4,
+          "heard": "2026-06-12T11:19:12+00:00",
+          "position": false
+        },
+        {
+          "hex": "4ca9b2",
+          "name": "4CA9B2",
+          "altitude": 10360,
+          "rssi": -31.2,
+          "heard": "2026-06-12T11:17:30+00:00",
+          "position": false
+        }
+      ]
+    }
+  },
   "shots": [
     {
       "name": "dashboard",
@@ -1116,6 +1218,117 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "name": "receiver-full",
+      "width": 400,
+      "card": {
+        "type": "custom:adsb-receiver-card",
+        "device": "receiver",
+        "feeders": [
+          {
+            "entity": "binary_sensor.fr24feed_link",
+            "name": "Flightradar24",
+            "detail": "sensor.fr24feed_reported"
+          }
+        ]
+      }
+    },
+    {
+      "name": "receiver-compact",
+      "width": 400,
+      "card": {
+        "type": "custom:adsb-receiver-card",
+        "device": "receiver",
+        "layout": "compact"
+      }
+    },
+    {
+      "name": "receiver-quiet-narrow",
+      "width": 250,
+      "states": {
+        "sensor.ads_b_aircraft_tracked": {
+          "state": "1",
+          "attributes": {
+            "friendly_name": "ADS-B Aircraft tracked",
+            "state_class": "measurement"
+          }
+        },
+        "sensor.ads_b_aircraft_with_a_position": {
+          "state": "0",
+          "attributes": {
+            "friendly_name": "ADS-B Aircraft with a position",
+            "state_class": "measurement"
+          }
+        },
+        "sensor.ads_b_messages_per_second": {
+          "state": "12.1",
+          "attributes": {
+            "friendly_name": "ADS-B Messages per second",
+            "state_class": "measurement",
+            "unit_of_measurement": "msg/s"
+          }
+        },
+        "sensor.ads_b_positions_per_minute": {
+          "state": "0",
+          "attributes": {
+            "friendly_name": "ADS-B Positions per minute",
+            "state_class": "measurement",
+            "unit_of_measurement": "/min"
+          }
+        },
+        "sensor.ads_b_longest_range": {
+          "state": "143.0",
+          "attributes": {
+            "friendly_name": "ADS-B Longest range",
+            "state_class": "measurement",
+            "unit_of_measurement": "km",
+            "device_class": "distance"
+          }
+        },
+        "sensor.ads_b_signal": {
+          "state": "-29.8",
+          "attributes": {
+            "friendly_name": "ADS-B Signal",
+            "state_class": "measurement",
+            "unit_of_measurement": "dBFS"
+          }
+        },
+        "sensor.fr24feed_reported": {
+          "state": "1",
+          "attributes": {
+            "friendly_name": "fr24feed reported",
+            "unit_of_measurement": "aircraft"
+          }
+        }
+      },
+      "card": {
+        "type": "custom:adsb-receiver-card",
+        "device": "receiver",
+        "feeders": [
+          {
+            "entity": "binary_sensor.fr24feed_link",
+            "name": "Flightradar24",
+            "detail": "sensor.fr24feed_reported"
+          }
+        ]
+      }
+    },
+    {
+      "name": "receiver-list",
+      "width": 400,
+      "card": {
+        "type": "custom:adsb-receiver-card",
+        "device": "receiver",
+        "feeders": [
+          {
+            "entity": "binary_sensor.fr24feed_link",
+            "name": "Flightradar24",
+            "detail": "sensor.fr24feed_reported"
+          }
+        ],
+        "list_open": true
       }
     }
   ]

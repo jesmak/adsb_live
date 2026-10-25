@@ -19,6 +19,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
 from .api import ADSB_FI_CLIENT, DETAILS_CLIENT, AdsbError, AdsbFiClient, DetailsClient, ReceiverClient
+from .card import async_add_card_resource, async_remove_card_resource, async_serve_card
 from .const import CONF_ALTITUDE_UNIT, CONF_LANGUAGE, DEFAULT_ALTITUDE_UNIT, DOMAIN
 from .coordinator import AdsbConfigEntry, AdsbRuntimeData, FeedCoordinator, Receiver, ReceiverAircraft, StatsCoordinator, TypeKinds
 from .services import async_setup_services
@@ -31,12 +32,15 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async_setup_services(hass)
+    await async_serve_card(hass)
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool:
     # A change saved before the update listener is added below has nothing to reload the entry, so it is looked for then.
     modified = entry.modified_at
+    # Before the receiver is reached, so the card is there to show it not answering.
+    await async_add_card_resource(hass)
     integration = await async_get_integration(hass, DOMAIN)
     session = async_get_clientsession(hass)
     client = ReceiverClient(session)
@@ -87,3 +91,7 @@ async def async_reload_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> Non
 
 async def async_unload_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> None:
+    await async_remove_card_resource(hass, entry)
