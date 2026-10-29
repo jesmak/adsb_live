@@ -1221,9 +1221,9 @@ describe("the editor", () => {
                 saved: { type: "custom:adsb-receiver-card", device: RECEIVER },
             },
             {
-                case: "a fixed height with a maximum height kept",
+                case: "a fixed height without the maximum height left from the max mode",
                 form: { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: "fixed", height: 300, max_height: 480 },
-                saved: { type: "custom:adsb-receiver-card", device: RECEIVER, height: 300, max_height: 480 },
+                saved: { type: "custom:adsb-receiver-card", device: RECEIVER, height: 300 },
             },
             {
                 case: "a feeder with empty fields",
