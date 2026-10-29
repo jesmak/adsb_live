@@ -239,15 +239,17 @@ itself, and the log says which line to add, change or remove.
 
 ### Card options
 
-| Name         | Type    | Description                                                                                           | Default  |
-| ------------ | ------- | ----------------------------------------------------------------------------------------------------- | -------- |
-| `type`       | string  | `custom:adsb-receiver-card`                                                                           | required |
-| `device`     | string  | The receiver's device                                                                                 | required |
-| `name`       | string  | Replaces the receiver's name                                                                          |          |
-| `layout`     | string  | `full`, or `compact` for one row                                                                      | `full`   |
-| `feeders`    | list    | Other feeders' status as rows under the receiver, in `full` only                                      |          |
-| `list_open`  | boolean | Whether the list of aircraft heard is open when the card is shown                                     | `false`  |
-| `max_height` | number  | The most the card grows to, in pixels, with only the list of aircraft scrolling (see [Sizes](#sizes)) |          |
+| Name          | Type    | Description                                                                                                                                                                                                                                                                                         | Default                                                                         |
+| ------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `type`        | string  | `custom:adsb-receiver-card`                                                                                                                                                                                                                                                                         | required                                                                        |
+| `device`      | string  | The receiver's device                                                                                                                                                                                                                                                                               | required                                                                        |
+| `name`        | string  | Replaces the receiver's name                                                                                                                                                                                                                                                                        |                                                                                 |
+| `layout`      | string  | `full`, or `compact` for one row                                                                                                                                                                                                                                                                    | `full`                                                                          |
+| `feeders`     | list    | Other feeders' status as rows under the receiver, in `full` only                                                                                                                                                                                                                                    |                                                                                 |
+| `list_open`   | boolean | Whether the list of aircraft heard is open when the card is shown                                                                                                                                                                                                                                   | `false`                                                                         |
+| `height_mode` | string  | How tall the card is, in `full` only. `auto` fits its content, `fixed` keeps it at `height`, `max` lets it grow up to `max_height`. In `fixed` and `max` the rest scrolls under the figures (see [Sizes](#sizes)). A height in grid rows, set in the layout tab of a sections view, is used instead | `fixed` when `height` is set, `max` when only `max_height` is, otherwise `auto` |
+| `height`      | number  | The card's height in pixels, for `fixed`                                                                                                                                                                                                                                                            |                                                                                 |
+| `max_height`  | number  | The card's greatest height in pixels, for `max`                                                                                                                                                                                                                                                     |                                                                                 |
 
 Each item of `feeders` has these keys:
 
@@ -295,9 +297,11 @@ In a sections view the card takes a whole section by default and can be made as 
 card the readsb version goes under the rates, and a label too long for its column wraps. In the compact layout the
 curve is left out below 280 px, so the texts keep their room.
 
-An open list of aircraft makes the card as tall as the list. With `max_height` the card grows to that many pixels at
-most and only the list scrolls inside it. In a sections view, rows set to a number give the card its height instead,
-and the list scrolls inside that.
+An open list of aircraft makes the card as tall as the list. With `height_mode: fixed` the card is always `height`
+pixels tall, and with `height_mode: max` it grows to `max_height` pixels at most. In a sections view, rows set to a
+number give the card its height instead. Held to a height, the receiver and its figures stay in view and the curve, the
+signal meter, the list and the feeders scroll together under them. The card never gets lower than the receiver, the
+figures and the curve need.
 
 <img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-quiet-narrow-light.png#gh-light-mode-only" width="260" alt="A quiet receiver on a card half a section wide, tracking one aircraft without a position, its version under the rates and its range label on two lines">
 <img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-quiet-narrow-dark.png#gh-dark-mode-only" width="260" alt="A quiet receiver on a card half a section wide, tracking one aircraft without a position, its version under the rates and its range label on two lines">

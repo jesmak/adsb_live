@@ -5,6 +5,7 @@ import { property, state } from "lit/decorators.js";
 
 import { PLATFORM, RECEIVER_MANUFACTURER } from "./const";
 import type { HomeAssistant } from "./hass";
+import { heightData, heightSchema, tidyHeight } from "./height";
 import { browserLanguage, translate } from "./localize/localize";
 import type { AdsbReceiverCardConfig, FeederConfig } from "./types";
 
@@ -12,7 +13,7 @@ interface SchemaEntry {
     name: string;
 }
 
-function receiverSchema(text: (key: string) => string) {
+function receiverSchema(config: AdsbReceiverCardConfig, text: (key: string) => string) {
     return [
         {
             name: "device",
@@ -33,7 +34,7 @@ function receiverSchema(text: (key: string) => string) {
             },
         },
         { name: "list_open", selector: { boolean: {} } },
-        { name: "max_height", selector: { number: { min: 1, mode: "box", unit_of_measurement: "px" } } },
+        ...heightSchema(config, text),
     ];
 }
 
@@ -94,13 +95,13 @@ export class AdsbReceiverCardEditor extends LitElement {
         if (!this.hass || !this.config) {
             return nothing;
         }
-        const data = { layout: "full", ...this.config };
+        const data = { layout: "full", ...heightData(this.config) };
         // Two forms, so that the feeders' helper, which Home Assistant's list of objects doesn't show, sits above the list.
         return html`
             <ha-form
                 .hass=${this.hass}
                 .data=${data}
-                .schema=${receiverSchema((key) => this.text(key))}
+                .schema=${receiverSchema(this.config, (key) => this.text(key))}
                 .computeLabel=${(entry: SchemaEntry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry: SchemaEntry) => this.helper(entry.name)}
                 @value-changed=${this.valueChanged}
@@ -129,7 +130,7 @@ export class AdsbReceiverCardEditor extends LitElement {
     }
 
     private valueChanged(event: CustomEvent<{ value: AdsbReceiverCardConfig }>): void {
-        const config: AdsbReceiverCardConfig = { ...event.detail.value };
+        const config: AdsbReceiverCardConfig = tidyHeight(event.detail.value);
         const feeders = compactFeeders(config.feeders);
         if (feeders.length) {
             config.feeders = feeders;
@@ -145,9 +146,6 @@ export class AdsbReceiverCardEditor extends LitElement {
         }
         if (!config.list_open) {
             delete config.list_open;
-        }
-        if (!config.max_height) {
-            delete config.max_height;
         }
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
     }

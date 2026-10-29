@@ -12,7 +12,9 @@ import type { HeardAircraft, ReceiverAircraft } from "./aircraft";
 import { AIRCRAFT_REFRESH_MS, CARD_VERSION, HISTORY_HOURS, HISTORY_REFRESH_MS, RANGE_MINUTES } from "./const";
 import type { SensorKey } from "./const";
 import "./editor";
+import { ScrollFade, fadeStyles } from "./fade";
 import type { HomeAssistant } from "./hass";
+import { gridMinRows, heightCardSize, heightStyle, validHeight } from "./height";
 import { fetchStatistics } from "./history";
 import type { StatisticRow } from "./history";
 import { browserLanguage, translate } from "./localize/localize";
@@ -67,9 +69,12 @@ export class AdsbReceiverCard extends LitElement {
     private aircraftReadAt = 0;
     private aircraftReading = false;
     private listTimer?: ReturnType<typeof setInterval>;
-    /** While the list slides open or shut, it doesn't scroll, so a held card shows no scrollbar as the list grows. */
-    @state() private sliding = false;
-    private slideTimer?: ReturnType<typeof setTimeout>;
+
+    constructor() {
+        super();
+        // Fades the scroller's edges while the card is held to a height, through the card's own lifecycle.
+        new ScrollFade(this, () => (this.heightStyle() ? this.renderRoot.querySelectorAll<HTMLElement>("ha-card > .scroll") : []));
+    }
 
     public static getConfigElement(): HTMLElement {
         return document.createElement("adsb-receiver-card-editor");
@@ -84,17 +89,13 @@ export class AdsbReceiverCard extends LitElement {
         if (!config || typeof config.device !== "string" || !config.device) {
             throw new Error(translate(browserLanguage(), "common.invalid_configuration"));
         }
-        const maxHeight = config.max_height as unknown;
-        if (maxHeight !== undefined && !(typeof maxHeight === "number" && Number.isFinite(maxHeight) && maxHeight > 0)) {
-            throw new Error(translate(browserLanguage(), "common.invalid_configuration"));
+        if (!validHeight(config)) {
+            throw new Error(translate(browserLanguage(), "common.invalid_height"));
         }
         const previous = this.config;
         // A list opened or shut by hand stays so, unless the configuration's own list_open changed. Only true opens it, so
         // list_open: false is the same as none.
         if (!previous || (previous.list_open === true) !== (config.list_open === true)) {
-            if (previous && this.listOpen !== (config.list_open === true)) {
-                this.slide();
-            }
             this.listOpen = config.list_open === true;
         }
         if (previous && previous.device !== config.device) {
@@ -116,12 +117,15 @@ export class AdsbReceiverCard extends LitElement {
 
     public getCardSize(): number {
         // One for the list's heading.
-        return this.compact() ? 1 : 6 + (this.config?.feeders?.length ?? 0);
+        return this.compact() ? 1 : heightCardSize(this.config ?? {}, 6 + (this.config?.feeders?.length ?? 0), this.minimumHeight());
     }
 
-    /** In a sections view the card takes a whole section by default and is never narrower than half of one. */
+    /**
+     * In a sections view the card takes a whole section by default and is never narrower than half of one. The full
+     * layout is never lower than its minimum height, while the compact one is a row whose height its content sets.
+     */
     public getGridOptions(): Record<string, unknown> {
-        return { columns: 12, min_columns: 6, rows: "auto" };
+        return { columns: 12, min_columns: 6, rows: "auto", ...(this.compact() ? {} : { min_rows: gridMinRows(this.minimumHeight()) }) };
     }
 
     /** The curve is read when the card comes on the page and every few minutes while it stays there. */
@@ -137,8 +141,6 @@ export class AdsbReceiverCard extends LitElement {
     public disconnectedCallback(): void {
         super.disconnectedCallback();
         clearInterval(this.timer);
-        clearTimeout(this.slideTimer);
-        this.sliding = false;
         this.stopList();
     }
 
@@ -171,7 +173,32 @@ export class AdsbReceiverCard extends LitElement {
     protected updated(): void {
         // The first hass, or a receiver picked in the editor, has a curve to read.
         void this.loadHistory(false);
+        this.placeTopFade();
     }
+
+    /**
+     * Has a held card's top fade start under the list's column heads while they are stuck at the top of the scroller,
+     * rather than fade them. Stuck, the heads' top is at the scroller's, or above it once the list's end pushes them up.
+     * They cover only as far as the fold shows them: nothing while it is shut, and less as it slides shut, as the heads
+     * stay in it then. It runs again when the fold's slide ends, as a fold shut from the editor redraws while still open.
+     */
+    private placeTopFade = (): void => {
+        const scroll = this.renderRoot.querySelector<HTMLElement>("ha-card > .scroll");
+        if (!scroll) {
+            return;
+        }
+        const held = scroll.closest("ha-card.held");
+        const head = held ? scroll.querySelector<HTMLElement>(".plane-head")?.getBoundingClientRect() : undefined;
+        const fold = head ? scroll.querySelector<HTMLElement>(".fold-in")?.getBoundingClientRect() : undefined;
+        const top = scroll.getBoundingClientRect().top;
+        const covered =
+            head && fold && fold.bottom > fold.top && head.top <= top + 0.5 ? Math.max(0, Math.min(head.bottom, fold.bottom) - top) : 0;
+        if (covered > 0) {
+            scroll.style.setProperty("--fade-top-offset", `${covered}px`);
+        } else {
+            scroll.style.removeProperty("--fade-top-offset");
+        }
+    };
 
     private watched(): string[] {
         if (!this.hass || !this.config) {
@@ -213,7 +240,7 @@ export class AdsbReceiverCard extends LitElement {
         }
         const sensors = receiverSensors(this.hass, this.config.device);
         if (!this.hass.devices?.[this.config.device] || !Object.keys(sensors).length) {
-            return html`<ha-card class="message">${this.text("common.no_receiver")}</ha-card>`;
+            return html`<ha-card class="message" style=${this.heightStyle()}>${this.text("common.no_receiver")}</ha-card>`;
         }
         const status = receiverStatus(this.hass, sensors);
         return this.compact() ? this.compactCard(sensors, status) : this.fullCard(sensors, status);
@@ -243,11 +270,17 @@ export class AdsbReceiverCard extends LitElement {
                                   ${this.figure(sensors.aircraft_with_position, "figures.with_position")}
                                   ${this.figure(sensors.max_range, "figures.range", true, { minutes: formatNumber(RANGE_MINUTES, this.numberFormat(), 0) })}
                               </div>
-                              ${this.curve(sensors)} ${this.meter(sensors)} ${this.aircraftList()}
                           `
                         : nothing
                 }
-                ${this.config?.feeders?.length ? html`<div class="feeders">${this.config.feeders.map((feeder) => this.feeder(feeder))}</div>` : nothing}
+                <div class="scroll" @scroll=${this.placeTopFade}>
+                    ${available ? html`${this.curve(sensors)} ${this.meter(sensors)} ${this.aircraftList()}` : nothing}
+                    ${
+                        this.config?.feeders?.length
+                            ? html`<div class="feeders">${this.config.feeders.map((feeder) => this.feeder(feeder))}</div>`
+                            : nothing
+                    }
+                </div>
             </ha-card>
         `;
     }
@@ -282,7 +315,7 @@ export class AdsbReceiverCard extends LitElement {
         }
         const count = this.listOpen && this.aircraft ? this.aircraft.aircraft.length : undefined;
         return html`
-            <div class="aircraft ${this.sliding ? "sliding" : ""}">
+            <div class="aircraft">
                 <button
                     class="list-heading ${this.listOpen ? "open" : ""}"
                     aria-expanded=${this.listOpen ? "true" : "false"}
@@ -292,7 +325,12 @@ export class AdsbReceiverCard extends LitElement {
                     ${count === undefined ? nothing : html`<span class="count">${formatNumber(count, this.numberFormat(), 0)}</span>`}
                     <ha-icon icon="mdi:chevron-down"></ha-icon>
                 </button>
-                <div class="fold ${this.listOpen ? "open" : ""}" ?inert=${!this.listOpen} @transitionend=${this.slid}>
+                <div
+                    class="fold ${this.listOpen ? "open" : ""}"
+                    ?inert=${!this.listOpen}
+                    @transitionend=${this.placeTopFade}
+                    @transitioncancel=${this.placeTopFade}
+                >
                     <div class="fold-in">${this.planes()}</div>
                 </div>
             </div>
@@ -364,7 +402,6 @@ export class AdsbReceiverCard extends LitElement {
     }
 
     private toggleList(): void {
-        this.slide();
         this.listOpen = !this.listOpen;
         if (this.listOpen && this.isConnected) {
             this.startList();
@@ -372,20 +409,6 @@ export class AdsbReceiverCard extends LitElement {
             this.stopList();
         }
     }
-
-    private slide(): void {
-        this.sliding = true;
-        clearTimeout(this.slideTimer);
-        // The slide's end lifts it. Without a slide, as with reduced motion, there is no end to wait for.
-        this.slideTimer = setTimeout(() => (this.sliding = false), 1000);
-    }
-
-    private readonly slid = (event: TransitionEvent): void => {
-        if (event.propertyName === "grid-template-rows" && event.target === event.currentTarget) {
-            clearTimeout(this.slideTimer);
-            this.sliding = false;
-        }
-    };
 
     /** Reads the list now and every AIRCRAFT_REFRESH_MS, and moves its ages on every second. */
     private startList(): void {
@@ -440,13 +463,24 @@ export class AdsbReceiverCard extends LitElement {
         }
     }
 
-    /** The card's height: the rows of a sections view when they are a number, otherwise up to `max_height`. */
+    /** The compact layout is a row whose height its content sets, so only the full one is held to a height. */
     private heightStyle(): string {
-        const rows = (this.config?.grid_options as { rows?: unknown } | undefined)?.rows;
-        if (this.layout === "grid" && typeof rows === "number") {
-            return "height: 100%;";
+        return this.compact() ? "" : heightStyle(this.config ?? {}, this.layout, this.minimumHeight());
+    }
+
+    /**
+     * The lowest the full layout is held to, in pixels: its padding, the top with the name, status and rates, the
+     * figures and the curve with its caption, each with the space above it, as measured on a full section's width.
+     */
+    private minimumHeight(): number {
+        if (this.compact()) {
+            return 0;
         }
-        return this.config?.max_height ? `max-height: ${this.config.max_height}px;` : "";
+        const padding = 30;
+        const top = 57;
+        const figures = 14 + 46;
+        const curve = 14 + 59;
+        return padding + top + figures + curve;
     }
 
     /** Parts of a sentence, each kept whole, so a number never wraps away from its unit. */
@@ -611,526 +645,530 @@ export class AdsbReceiverCard extends LitElement {
     }
 
     static get styles(): CSSResultGroup {
-        return css`
-            ha-card {
-                container-type: inline-size;
-                font-variant-numeric: tabular-nums;
-                --receiver-color: var(--secondary-text-color);
-                --receiver-tint: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.06);
-            }
+        return [
+            css`
+                ha-card {
+                    container-type: inline-size;
+                    font-variant-numeric: tabular-nums;
+                    --receiver-color: var(--secondary-text-color);
+                    --receiver-tint: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.06);
+                }
 
-            ha-card.receiving {
-                --receiver-color: var(--success-color, #43a047);
-                --receiver-tint: rgba(var(--rgb-success-color, 67, 160, 71), 0.15);
-            }
+                ha-card.receiving {
+                    --receiver-color: var(--success-color, #43a047);
+                    --receiver-tint: rgba(var(--rgb-success-color, 67, 160, 71), 0.15);
+                }
 
-            ha-card.unavailable {
-                --receiver-color: var(--error-color, #db4437);
-                --receiver-tint: rgba(var(--rgb-error-color, 219, 68, 55), 0.15);
-            }
+                ha-card.unavailable {
+                    --receiver-color: var(--error-color, #db4437);
+                    --receiver-tint: rgba(var(--rgb-error-color, 219, 68, 55), 0.15);
+                }
 
-            ha-card.message {
-                padding: 16px;
-                color: var(--secondary-text-color);
-            }
+                ha-card.message {
+                    padding: 16px;
+                    color: var(--secondary-text-color);
+                }
 
-            button {
-                padding: 0;
-                border: none;
-                background: none;
-                color: inherit;
-                font: inherit;
-                text-align: inherit;
-                cursor: pointer;
-            }
+                button {
+                    padding: 0;
+                    border: none;
+                    background: none;
+                    color: inherit;
+                    font: inherit;
+                    text-align: inherit;
+                    cursor: pointer;
+                }
 
-            .full {
-                padding: 14px 16px 12px;
-            }
+                .full {
+                    padding: 14px 16px 12px;
+                }
 
-            .top {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-            }
-
-            .icon {
-                flex: none;
-                width: 40px;
-                height: 40px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: var(--receiver-color);
-                background: var(--receiver-tint);
-            }
-
-            .who {
-                flex: 1;
-                min-width: 0;
-            }
-
-            .name {
-                font-size: 16px;
-                font-weight: var(--ha-font-weight-medium, 500);
-                overflow-wrap: anywhere;
-            }
-
-            .status {
-                font-size: 13px;
-                color: var(--receiver-color);
-            }
-
-            .rates,
-            .version,
-            .label,
-            .caption,
-            .levels,
-            .feeder-value,
-            .line,
-            .unit {
-                color: var(--secondary-text-color);
-            }
-
-            .rates {
-                font-size: 12px;
-            }
-
-            .version {
-                align-self: flex-start;
-                font-size: 12px;
-                white-space: nowrap;
-            }
-
-            .piece,
-            .levels button {
-                white-space: nowrap;
-            }
-
-            /* On a narrow card the version goes under the rates, leaving the name and rates the width, and the figures shrink so a number keeps its unit. */
-            @container (max-width: 299px) {
                 .top {
-                    flex-wrap: wrap;
-                    row-gap: 2px;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .icon {
+                    flex: none;
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: var(--receiver-color);
+                    background: var(--receiver-tint);
+                }
+
+                .who {
+                    flex: 1;
+                    min-width: 0;
+                }
+
+                .name {
+                    font-size: 16px;
+                    font-weight: var(--ha-font-weight-medium, 500);
+                    overflow-wrap: anywhere;
+                }
+
+                .status {
+                    font-size: 13px;
+                    color: var(--receiver-color);
+                }
+
+                .rates,
+                .version,
+                .label,
+                .caption,
+                .levels,
+                .feeder-value,
+                .line,
+                .unit {
+                    color: var(--secondary-text-color);
+                }
+
+                .rates {
+                    font-size: 12px;
                 }
 
                 .version {
-                    order: 3;
-                    flex-basis: 100%;
-                    padding-left: 52px;
+                    align-self: flex-start;
+                    font-size: 12px;
+                    white-space: nowrap;
+                }
+
+                .piece,
+                .levels button {
+                    white-space: nowrap;
+                }
+
+                /* On a narrow card the version goes under the rates, leaving the name and rates the width, and the figures shrink so a number keeps its unit. */
+                @container (max-width: 299px) {
+                    .top {
+                        flex-wrap: wrap;
+                        row-gap: 2px;
+                    }
+
+                    .version {
+                        order: 3;
+                        flex-basis: 100%;
+                        padding-left: 52px;
+                    }
+
+                    .value {
+                        font-size: 20px;
+                    }
+
+                    .unit {
+                        font-size: 12px;
+                    }
+                }
+
+                .figures {
+                    display: grid;
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                    margin: 14px 0 4px;
+                    text-align: center;
+                }
+
+                .figure {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    padding: 0 4px;
+                    text-align: center;
+                }
+
+                .figure + .figure {
+                    border-left: 1px solid var(--divider-color);
                 }
 
                 .value {
-                    font-size: 20px;
+                    white-space: nowrap;
+                    font-size: 24px;
+                    font-weight: var(--ha-font-weight-medium, 500);
+                    line-height: 1.2;
                 }
 
                 .unit {
+                    font-size: 13px;
+                    font-weight: var(--ha-font-weight-normal, 400);
+                }
+
+                .label {
                     font-size: 12px;
                 }
-            }
 
-            .figures {
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                margin: 14px 0 4px;
-                text-align: center;
-            }
-
-            .figure {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                padding: 0 4px;
-                text-align: center;
-            }
-
-            .figure + .figure {
-                border-left: 1px solid var(--divider-color);
-            }
-
-            .value {
-                white-space: nowrap;
-                font-size: 24px;
-                font-weight: var(--ha-font-weight-medium, 500);
-                line-height: 1.2;
-            }
-
-            .unit {
-                font-size: 13px;
-                font-weight: var(--ha-font-weight-normal, 400);
-            }
-
-            .label {
-                font-size: 12px;
-            }
-
-            .curve {
-                display: block;
-                width: 100%;
-                margin-top: 10px;
-            }
-
-            /* The present value sits on the right edge, and its dot would be cut in half there. */
-            .curve svg,
-            .small-curve {
-                overflow: visible;
-            }
-
-            .curve svg {
-                display: block;
-                width: 100%;
-                height: 44px;
-            }
-
-            svg path {
-                fill: none;
-                stroke: var(--primary-color);
-                stroke-width: 2;
-                stroke-linejoin: round;
-                stroke-linecap: round;
-                vector-effect: non-scaling-stroke;
-            }
-
-            /* Only the present value, before the recorder has an hour: a dot that shows. */
-            svg path.lone {
-                stroke-width: 6;
-            }
-
-            svg .base {
-                stroke: var(--divider-color);
-                stroke-width: 1;
-                vector-effect: non-scaling-stroke;
-            }
-
-            .caption {
-                display: flex;
-                justify-content: space-between;
-                gap: 8px;
-                font-size: 11px;
-            }
-
-            .meter {
-                margin-top: 12px;
-            }
-
-            .levels {
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: space-between;
-                gap: 0 12px;
-                margin-bottom: 4px;
-                font-size: 12px;
-            }
-
-            .bar {
-                position: relative;
-                height: 8px;
-                border-radius: 4px;
-                background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.08);
-            }
-
-            .gap {
-                position: absolute;
-                top: 0;
-                height: 8px;
-                border-radius: 4px;
-                background: var(--primary-color);
-                opacity: 0.3;
-            }
-
-            .mark {
-                position: absolute;
-                top: -3px;
-                width: 3px;
-                height: 14px;
-                margin-left: -1.5px;
-                border-radius: 2px;
-            }
-
-            .mark.noise {
-                background: var(--disabled-text-color, #9e9e9e);
-            }
-
-            .mark.signal {
-                background: var(--primary-color);
-            }
-
-            /* Held to a height, by max_height or a sections view's rows, the card is a column in which only the list scrolls. */
-            ha-card.held {
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-            }
-
-            ha-card.held > * {
-                flex: none;
-            }
-
-            ha-card.held > .aircraft {
-                display: flex;
-                flex: 0 1 auto;
-                flex-direction: column;
-                min-height: 0;
-            }
-
-            ha-card.held .fold {
-                flex: 0 1 auto;
-            }
-
-            ha-card.held .fold-in {
-                display: flex;
-                flex-direction: column;
-            }
-
-            ha-card.held .planes {
-                min-height: 0;
-                overflow-y: auto;
-            }
-
-            ha-card.held .aircraft.sliding .planes {
-                overflow-y: hidden;
-            }
-
-            .aircraft {
-                margin-top: 12px;
-                border-top: 1px solid var(--divider-color);
-            }
-
-            .list-heading {
-                display: flex;
-                flex: none;
-                align-items: center;
-                gap: 8px;
-                width: 100%;
-                padding: 10px 0 8px;
-                font-size: 14px;
-            }
-
-            .list-heading .count {
-                color: var(--secondary-text-color);
-            }
-
-            .list-heading ha-icon {
-                --mdc-icon-size: 20px;
-                margin-left: auto;
-                color: var(--secondary-text-color);
-                transition: transform var(--ha-animation-duration-fast, 150ms);
-            }
-
-            .list-heading.open ha-icon {
-                transform: rotate(180deg);
-            }
-
-            /* The list slides open and shut, on Home Assistant's timing, which is near none under the system's reduced motion. */
-            .fold {
-                display: grid;
-                grid-template-rows: 0fr;
-                min-height: 0;
-                transition: grid-template-rows var(--ha-animation-duration-normal, 250ms) ease;
-            }
-
-            .fold.open {
-                grid-template-rows: 1fr;
-            }
-
-            .fold-in {
-                min-height: 0;
-                overflow: hidden;
-            }
-
-            @media (prefers-reduced-motion: reduce) {
-                .fold,
-                .list-heading ha-icon {
-                    transition: none;
+                .curve {
+                    display: block;
+                    width: 100%;
+                    margin-top: 10px;
                 }
-            }
 
-            /* The list's last row has its own line under it, the feeders'. */
-            .aircraft + .feeders {
-                margin-top: 0;
-            }
-
-            .aircraft .message {
-                padding: 4px 0 8px;
-                font-size: 13px;
-                color: var(--secondary-text-color);
-            }
-
-            .plane-head,
-            .plane {
-                display: grid;
-                grid-template-columns: minmax(0, 1fr) auto 56px;
-                align-items: center;
-                gap: 0 8px;
-            }
-
-            /* Kept at the top of a list that scrolls. */
-            .plane-head {
-                position: sticky;
-                top: 0;
-                z-index: 1;
-                background: var(--ha-card-background, var(--card-background-color, #fff));
-                padding: 2px 0 4px;
-                font-size: 11px;
-                color: var(--secondary-text-color);
-            }
-
-            .plane-head span:nth-child(2) {
-                text-align: right;
-            }
-
-            .plane {
-                grid-template-areas: "id altitude signal" "sub altitude signal";
-                padding: 5px 0;
-                border-top: 1px solid var(--divider-color);
-                font-size: 13px;
-            }
-
-            .plane .id {
-                grid-area: id;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-
-            .plane .callsign {
-                font-weight: 500;
-            }
-
-            /* Whether the aircraft's position is known, after its type, centred on the capitals the callsigns and types are. */
-            .plane .position {
-                --mdc-icon-size: 14px;
-                margin-left: 4px;
-                color: var(--secondary-text-color);
-                vertical-align: 1px;
-            }
-
-            .plane .type {
-                margin-left: 2px;
-                color: var(--secondary-text-color);
-            }
-
-            .plane .sub {
-                grid-area: sub;
-                font-size: 11px;
-                color: var(--secondary-text-color);
-            }
-
-            .plane .altitude {
-                grid-area: altitude;
-                text-align: right;
-                white-space: nowrap;
-            }
-
-            .plane .signal {
-                grid-area: signal;
-                position: relative;
-                height: 6px;
-                border-radius: 3px;
-                background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.08);
-            }
-
-            .plane .signal i {
-                position: absolute;
-                inset: 0 auto 0 0;
-                border-radius: 3px;
-                background: var(--primary-color);
-            }
-
-            /* Heard without a position, as the card's figures count it apart. */
-            .plane.nopos .callsign {
-                font-weight: 400;
-            }
-
-            .plane.nopos .id,
-            .plane.nopos .altitude {
-                color: var(--secondary-text-color);
-            }
-
-            .feeders {
-                margin-top: 12px;
-                padding-top: 6px;
-                border-top: 1px solid var(--divider-color);
-            }
-
-            .feeder {
-                display: flex;
-                flex-wrap: wrap;
-                align-items: center;
-                gap: 2px 10px;
-                width: 100%;
-                padding: 7px 0;
-                font-size: 13px;
-            }
-
-            .dot {
-                flex: none;
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                background: var(--disabled-text-color, #9e9e9e);
-            }
-
-            .dot.ok {
-                background: var(--success-color, #43a047);
-            }
-
-            .dot.error {
-                background: var(--error-color, #db4437);
-            }
-
-            .feeder-name {
-                flex: 1 1 auto;
-                min-width: 0;
-                overflow-wrap: anywhere;
-            }
-
-            .feeder-value {
-                margin-left: auto;
-                text-align: right;
-                overflow-wrap: anywhere;
-            }
-
-            .compact .row {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                width: 100%;
-                padding: 12px 14px;
-            }
-
-            .compact .icon {
-                width: 36px;
-                height: 36px;
-            }
-
-            .compact .name {
-                font-size: 14px;
-            }
-
-            .compact .status {
-                font-weight: var(--ha-font-weight-normal, 400);
-            }
-
-            .line {
-                font-size: 12px;
-                overflow-wrap: anywhere;
-            }
-
-            .small-curve {
-                flex: none;
-                width: 90px;
-                height: 32px;
-            }
-
-            /* Below this the curve would leave the texts too little room, and they matter more. */
-            @container (max-width: 279px) {
+                /* The present value sits on the right edge, and its dot would be cut in half there. */
+                .curve svg,
                 .small-curve {
-                    display: none;
+                    overflow: visible;
                 }
-            }
-        `;
+
+                .curve svg {
+                    display: block;
+                    width: 100%;
+                    height: 44px;
+                }
+
+                svg path {
+                    fill: none;
+                    stroke: var(--primary-color);
+                    stroke-width: 2;
+                    stroke-linejoin: round;
+                    stroke-linecap: round;
+                    vector-effect: non-scaling-stroke;
+                }
+
+                /* Only the present value, before the recorder has an hour: a dot that shows. */
+                svg path.lone {
+                    stroke-width: 6;
+                }
+
+                svg .base {
+                    stroke: var(--divider-color);
+                    stroke-width: 1;
+                    vector-effect: non-scaling-stroke;
+                }
+
+                .caption {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 8px;
+                    font-size: 11px;
+                }
+
+                .meter {
+                    margin-top: 12px;
+                }
+
+                .levels {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: space-between;
+                    gap: 0 12px;
+                    margin-bottom: 4px;
+                    font-size: 12px;
+                }
+
+                .bar {
+                    position: relative;
+                    height: 8px;
+                    border-radius: 4px;
+                    background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.08);
+                }
+
+                .gap {
+                    position: absolute;
+                    top: 0;
+                    height: 8px;
+                    border-radius: 4px;
+                    background: var(--primary-color);
+                    opacity: 0.3;
+                }
+
+                .mark {
+                    position: absolute;
+                    top: -3px;
+                    width: 3px;
+                    height: 14px;
+                    margin-left: -1.5px;
+                    border-radius: 2px;
+                }
+
+                .mark.noise {
+                    background: var(--disabled-text-color, #9e9e9e);
+                }
+
+                .mark.signal {
+                    background: var(--primary-color);
+                }
+
+                /*
+                 * Held to a height, by its height mode or a sections view's rows, the card is a column in which the top and
+                 * the figures stay and the rest scrolls together, the list of aircraft with it rather than on its own.
+                 */
+                ha-card.held {
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                }
+
+                ha-card.held > * {
+                    flex: none;
+                }
+
+                /*
+                 * The scroller clips at its padding box, so it reaches out over the card's padding at the sides and 4 px up and
+                 * down, where the curve's present dot, the meter's marks at its ends and the focus rings are drawn.
+                 */
+                ha-card.held > .scroll {
+                    margin: -4px -16px;
+                    padding: 4px 16px;
+                    flex: 1 1 auto;
+                    min-height: 0;
+                    overflow-y: auto;
+                    overscroll-behavior: contain;
+                    scrollbar-width: thin;
+                }
+
+                /* Clipped, not hidden, which would make the fold the scroller the list's column heads stick to. */
+                ha-card.held .fold-in {
+                    overflow: clip;
+                }
+
+                .aircraft {
+                    margin-top: 12px;
+                    border-top: 1px solid var(--divider-color);
+                }
+
+                .list-heading {
+                    display: flex;
+                    flex: none;
+                    align-items: center;
+                    gap: 8px;
+                    width: 100%;
+                    padding: 10px 0 8px;
+                    font-size: 14px;
+                }
+
+                .list-heading .count {
+                    color: var(--secondary-text-color);
+                }
+
+                .list-heading ha-icon {
+                    --mdc-icon-size: 20px;
+                    margin-left: auto;
+                    color: var(--secondary-text-color);
+                    transition: transform var(--ha-animation-duration-fast, 150ms);
+                }
+
+                .list-heading.open ha-icon {
+                    transform: rotate(180deg);
+                }
+
+                /* The list slides open and shut, on Home Assistant's timing, which is near none under the system's reduced motion. */
+                .fold {
+                    display: grid;
+                    grid-template-rows: 0fr;
+                    min-height: 0;
+                    transition: grid-template-rows var(--ha-animation-duration-normal, 250ms) ease;
+                }
+
+                .fold.open {
+                    grid-template-rows: 1fr;
+                }
+
+                .fold-in {
+                    min-height: 0;
+                    overflow: hidden;
+                }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .fold,
+                    .list-heading ha-icon {
+                        transition: none;
+                    }
+                }
+
+                /* The list's last row has its own line under it, the feeders'. */
+                .aircraft + .feeders {
+                    margin-top: 0;
+                }
+
+                .aircraft .message {
+                    padding: 4px 0 8px;
+                    font-size: 13px;
+                    color: var(--secondary-text-color);
+                }
+
+                .plane-head,
+                .plane {
+                    display: grid;
+                    grid-template-columns: minmax(0, 1fr) auto 56px;
+                    align-items: center;
+                    gap: 0 8px;
+                }
+
+                /*
+                 * Kept at the top of a held card's scroller, over the scroller's 4 px of top padding, with as much more padding
+                 * of its own, drawn above where it sits. Elsewhere the fold, which hides its overflow, holds it in place.
+                 */
+                .plane-head {
+                    position: sticky;
+                    top: -4px;
+                    z-index: 1;
+                    background: var(--ha-card-background, var(--card-background-color, #fff));
+                    margin-top: -4px;
+                    padding: 6px 0 4px;
+                    font-size: 11px;
+                    color: var(--secondary-text-color);
+                }
+
+                .plane-head span:nth-child(2) {
+                    text-align: right;
+                }
+
+                .plane {
+                    grid-template-areas: "id altitude signal" "sub altitude signal";
+                    padding: 5px 0;
+                    border-top: 1px solid var(--divider-color);
+                    font-size: 13px;
+                }
+
+                .plane .id {
+                    grid-area: id;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+
+                .plane .callsign {
+                    font-weight: 500;
+                }
+
+                /* Whether the aircraft's position is known, after its type, centred on the capitals the callsigns and types are. */
+                .plane .position {
+                    --mdc-icon-size: 14px;
+                    margin-left: 4px;
+                    color: var(--secondary-text-color);
+                    vertical-align: 1px;
+                }
+
+                .plane .type {
+                    margin-left: 2px;
+                    color: var(--secondary-text-color);
+                }
+
+                .plane .sub {
+                    grid-area: sub;
+                    font-size: 11px;
+                    color: var(--secondary-text-color);
+                }
+
+                .plane .altitude {
+                    grid-area: altitude;
+                    text-align: right;
+                    white-space: nowrap;
+                }
+
+                .plane .signal {
+                    grid-area: signal;
+                    position: relative;
+                    height: 6px;
+                    border-radius: 3px;
+                    background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.08);
+                }
+
+                .plane .signal i {
+                    position: absolute;
+                    inset: 0 auto 0 0;
+                    border-radius: 3px;
+                    background: var(--primary-color);
+                }
+
+                /* Heard without a position, as the card's figures count it apart. */
+                .plane.nopos .callsign {
+                    font-weight: 400;
+                }
+
+                .plane.nopos .id,
+                .plane.nopos .altitude {
+                    color: var(--secondary-text-color);
+                }
+
+                .feeders {
+                    margin-top: 12px;
+                    padding-top: 6px;
+                    border-top: 1px solid var(--divider-color);
+                }
+
+                .feeder {
+                    display: flex;
+                    flex-wrap: wrap;
+                    align-items: center;
+                    gap: 2px 10px;
+                    width: 100%;
+                    padding: 7px 0;
+                    font-size: 13px;
+                }
+
+                .dot {
+                    flex: none;
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: var(--disabled-text-color, #9e9e9e);
+                }
+
+                .dot.ok {
+                    background: var(--success-color, #43a047);
+                }
+
+                .dot.error {
+                    background: var(--error-color, #db4437);
+                }
+
+                .feeder-name {
+                    flex: 1 1 auto;
+                    min-width: 0;
+                    overflow-wrap: anywhere;
+                }
+
+                .feeder-value {
+                    margin-left: auto;
+                    text-align: right;
+                    overflow-wrap: anywhere;
+                }
+
+                .compact .row {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    width: 100%;
+                    padding: 12px 14px;
+                }
+
+                .compact .icon {
+                    width: 36px;
+                    height: 36px;
+                }
+
+                .compact .name {
+                    font-size: 14px;
+                }
+
+                .compact .status {
+                    font-weight: var(--ha-font-weight-normal, 400);
+                }
+
+                .line {
+                    font-size: 12px;
+                    overflow-wrap: anywhere;
+                }
+
+                .small-curve {
+                    flex: none;
+                    width: 90px;
+                    height: 32px;
+                }
+
+                /* Below this the curve would leave the texts too little room, and they matter more. */
+                @container (max-width: 279px) {
+                    .small-curve {
+                        display: none;
+                    }
+                }
+            `,
+            fadeStyles,
+        ];
     }
 }
 

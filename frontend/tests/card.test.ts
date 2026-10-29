@@ -10,9 +10,10 @@ import { RECEIVER, SENSOR_IDS, entity, hass } from "./fixtures";
 
 const NOW = Date.parse("2026-10-14T07:40:00Z");
 
-async function card(state: HomeAssistant, config: Partial<AdsbReceiverCardConfig> = {}): Promise<AdsbReceiverCard> {
+async function card(state: HomeAssistant, config: Partial<AdsbReceiverCardConfig> = {}, layout?: string): Promise<AdsbReceiverCard> {
     const element = document.createElement("adsb-receiver-card");
     element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, ...config } as AdsbReceiverCardConfig);
+    element.layout = layout;
     element.hass = state;
     document.body.append(element);
     await element.updateComplete;
@@ -266,6 +267,14 @@ describe("adsb-receiver-card", () => {
         state.devices!["lamp0001"] = { id: "lamp0001", name: "Lamp" };
         const lamp = await card(state, { device: "lamp0001" });
         expect(text(lamp.shadowRoot!.querySelector("ha-card"))).toBe("Vastaanotinta ei löydy");
+    });
+
+    it.each<[string, Partial<AdsbReceiverCardConfig>, string]>([
+        ["the full layout's height", {}, "height: 300px"],
+        ["no height in the compact layout", { layout: "compact" }, ""],
+    ])("keeps to %s when it says the receiver is missing", async (_name, extra, style) => {
+        const element = await card(hass(), { device: "nothing0001", height: 300, ...extra });
+        expect(element.shadowRoot!.querySelector("ha-card")!.getAttribute("style") ?? "").toBe(style);
     });
 
     // What makes the card draw itself again: anything it formats with, and the states it shows, but no other state.
@@ -589,50 +598,6 @@ describe("adsb-receiver-card", () => {
             expect(rows(root).map((row) => text(row.querySelector(".callsign")))).toEqual(["BRAVO"]);
         });
 
-        // While the list slides, it doesn't scroll, so a held card shows no scrollbar as it grows. The fold's own slide ends it,
-        // or a second later, as under reduced motion there is no slide to end.
-        it("doesn't scroll while it slides", async () => {
-            const { element, root } = await withList([{ aircraft: [{ ...PLANE, heard: heard(1) }], altitude_unit: "m" }], {});
-            const sliding = () => !!root.querySelector(".aircraft.sliding");
-            const fold = () => root.querySelector(".aircraft .fold")!;
-            expect(sliding()).toBe(false);
-            heading(root)!.click();
-            await element.updateComplete;
-            expect(sliding()).toBe(true);
-            fold()
-                .querySelector(".fold-in")!
-                .dispatchEvent(Object.assign(new Event("transitionend", { bubbles: true }), { propertyName: "grid-template-rows" }));
-            fold().dispatchEvent(Object.assign(new Event("transitionend"), { propertyName: "opacity" }));
-            await element.updateComplete;
-            expect(sliding()).toBe(true);
-            fold().dispatchEvent(Object.assign(new Event("transitionend"), { propertyName: "grid-template-rows" }));
-            await element.updateComplete;
-            expect(sliding()).toBe(false);
-
-            vi.useFakeTimers({ now: NOW, toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
-            heading(root)!.click();
-            await element.updateComplete;
-            expect(sliding()).toBe(true);
-            // A slide takes a quarter of a second, so the fallback mustn't end it early.
-            await vi.advanceTimersByTimeAsync(999);
-            await element.updateComplete;
-            expect(sliding()).toBe(true);
-            await vi.advanceTimersByTimeAsync(1);
-            await element.updateComplete;
-            expect(sliding()).toBe(false);
-        });
-
-        it("leaves no slide behind when the card leaves the page while its list slides", async () => {
-            const { element, root } = await withList([{ aircraft: [{ ...PLANE, heard: heard(1) }], altitude_unit: "m" }], {});
-            heading(root)!.click();
-            await element.updateComplete;
-            expect(root.querySelector(".aircraft.sliding")).not.toBeNull();
-            element.remove();
-            document.body.append(element);
-            await element.updateComplete;
-            expect(root.querySelector(".aircraft.sliding")).toBeNull();
-        });
-
         it("never reads twice at a time", async () => {
             const { calls } = await withList(["pending"]);
             await vi.advanceTimersByTimeAsync(30_000);
@@ -685,34 +650,24 @@ describe("adsb-receiver-card", () => {
             await settle(element);
             expect(isOpen(root)).toBe(true);
 
-            // list_open: false is what no list_open meant, so it changes nothing either, and nothing slides.
-            const sliding = () => !!root.querySelector(".aircraft.sliding");
-            root.querySelector(".aircraft .fold")!.dispatchEvent(
-                Object.assign(new Event("transitionend"), { propertyName: "grid-template-rows" }),
-            );
+            // list_open: false is what no list_open meant, so it changes nothing either.
             element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, list_open: false } as AdsbReceiverCardConfig);
             await settle(element);
             expect(isOpen(root)).toBe(true);
-            expect(sliding()).toBe(false);
 
             // list_open itself changed to false: the list shuts and isn't read any more.
             element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, list_open: true } as AdsbReceiverCardConfig);
             element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, list_open: false } as AdsbReceiverCardConfig);
             await settle(element);
             expect(isOpen(root)).toBe(false);
-            expect(sliding()).toBe(true);
             const shut = calls.length;
             await vi.advanceTimersByTimeAsync(20_000);
             expect(calls).toHaveLength(shut);
 
-            // list_open changed to true: the list slides open and is read.
-            root.querySelector(".aircraft .fold")!.dispatchEvent(
-                Object.assign(new Event("transitionend"), { propertyName: "grid-template-rows" }),
-            );
+            // list_open changed to true: the list opens and is read.
             element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, list_open: true } as AdsbReceiverCardConfig);
             await settle(element);
             expect(isOpen(root)).toBe(true);
-            expect(sliding()).toBe(true);
             expect(calls.length).toBeGreaterThan(shut);
 
             // Another receiver: the first one's aircraft go at once, while the second's are on the way.
@@ -731,6 +686,122 @@ describe("adsb-receiver-card", () => {
             expect(text(root.querySelector(".top .name"))).toBe("Toinen");
             expect(rows(root)).toHaveLength(0);
             expect(text(heading(root))).toBe("Kuultavat koneet");
+        });
+
+        // One scroller for all of it, so the list never scrolls inside a card that scrolls too.
+        it("puts the top and the figures ahead of the scroll box, and the curve, meter, list and feeders in it", async () => {
+            const { root } = await withList(
+                [{ aircraft: [{ ...PLANE, heard: heard(1) }], altitude_unit: "m" }],
+                { list_open: true, height: 300, feeders: [{ entity: "binary_sensor.fr24_link" }] },
+                (state) => {
+                    for (const feeder of FEEDERS) {
+                        state.states[feeder.entity_id] = feeder;
+                    }
+                },
+            );
+            const haCard = root.querySelector("ha-card")!;
+            expect(haCard.classList.contains("held")).toBe(true);
+            expect([...haCard.children].map((child) => child.classList[0])).toEqual(["top", "figures", "scroll"]);
+            expect([...haCard.querySelector(".scroll")!.children].map((child) => child.className)).toEqual([
+                "curve",
+                "meter",
+                "aircraft",
+                "feeders",
+            ]);
+        });
+
+        type Box = { top: number; bottom: number };
+
+        /** Places the scroller's top, the column heads' box and the fold's where a test has them, as happy-dom lays nothing out. */
+        function place(root: ShadowRoot, scrollTop: number, head: Box, fold: Box = { top: 50, bottom: 400 }): HTMLElement {
+            const scroll = root.querySelector<HTMLElement>("ha-card > .scroll")!;
+            scroll.getBoundingClientRect = () => ({ top: scrollTop }) as DOMRect;
+            root.querySelector<HTMLElement>(".plane-head")!.getBoundingClientRect = () => head as DOMRect;
+            root.querySelector<HTMLElement>(".fold-in")!.getBoundingClientRect = () => fold as DOMRect;
+            scroll.dispatchEvent(new Event("scroll"));
+            return scroll;
+        }
+
+        it.each([
+            ["stuck at the top", true, { top: 100, bottom: 120 }, undefined, "20px"],
+            ["stuck within half a pixel of the top", true, { top: 100.5, bottom: 120.5 }, undefined, "20.5px"],
+            ["more than half a pixel below the top", true, { top: 100.6, bottom: 120.6 }, undefined, ""],
+            ["pushed half way up by the list's end", true, { top: 90, bottom: 110 }, { top: 50, bottom: 110 }, "10px"],
+            ["pushed fully out by the list's end", true, { top: 80, bottom: 100 }, { top: 40, bottom: 100 }, ""],
+            ["in place below the top", true, { top: 140, bottom: 160 }, undefined, ""],
+            ["as far as the fold shows them while it slides shut", false, { top: 100, bottom: 120 }, { top: 60, bottom: 110 }, "10px"],
+            ["never while the list is shut", false, { top: 96, bottom: 116 }, { top: 100, bottom: 100 }, ""],
+            [
+                "never while the list is shut, though the heads' lower edge peeks past the scroller's top",
+                false,
+                { top: 100.4, bottom: 120.4 },
+                { top: 100.4, bottom: 100.4 },
+                "",
+            ],
+        ])("has a held card's top fade start under the list's column heads %s", async (_name, open, head, fold, offset) => {
+            const { element, root } = await withList([{ aircraft: [{ ...PLANE, heard: heard(1) }], altitude_unit: "m" }], {
+                list_open: true,
+                height: 300,
+            });
+            if (!open) {
+                heading(root)!.click();
+                await settle(element);
+                expect(isOpen(root)).toBe(false);
+            }
+            expect(place(root, 100, head, fold).style.getPropertyValue("--fade-top-offset")).toBe(offset);
+        });
+
+        it("clears the top fade's offset on the same scroller once the column heads move off the top", async () => {
+            const { root } = await withList([{ aircraft: [{ ...PLANE, heard: heard(1) }], altitude_unit: "m" }], {
+                list_open: true,
+                height: 300,
+            });
+            expect(place(root, 100, { top: 100, bottom: 120 }).style.getPropertyValue("--fade-top-offset")).toBe("20px");
+            const scroll = place(root, 100, { top: 140, bottom: 160 });
+            expect(scroll.style.getPropertyValue("--fade-top-offset")).toBe("");
+            expect(scroll).toBe(root.querySelector("ha-card > .scroll"));
+        });
+
+        it.each(["transitionend", "transitioncancel"])(
+            "clears the top fade's offset on the %s of a fold shut from the editor while the heads were stuck",
+            async (event) => {
+                const config = { list_open: true, height: 300 };
+                const { element, root } = await withList([{ aircraft: [{ ...PLANE, heard: heard(1) }], altitude_unit: "m" }], config);
+                const scroll = place(root, 100, { top: 100, bottom: 120 });
+                expect(scroll.style.getPropertyValue("--fade-top-offset")).toBe("20px");
+                element.setConfig({
+                    type: "custom:adsb-receiver-card",
+                    device: RECEIVER,
+                    ...config,
+                    list_open: false,
+                } as AdsbReceiverCardConfig);
+                await settle(element);
+                expect(isOpen(root)).toBe(false);
+                // The redraw comes before the slide, while the fold still shows the heads.
+                expect(scroll.style.getPropertyValue("--fade-top-offset")).toBe("20px");
+                root.querySelector<HTMLElement>(".fold-in")!.getBoundingClientRect = () => ({ top: 100, bottom: 100 }) as DOMRect;
+                root.querySelector(".fold")!.dispatchEvent(new Event(event));
+                expect(scroll.style.getPropertyValue("--fade-top-offset")).toBe("");
+            },
+        );
+
+        it("clears the top fade's offset when a held card goes to auto", async () => {
+            const { element, root } = await withList([{ aircraft: [{ ...PLANE, heard: heard(1) }], altitude_unit: "m" }], {
+                list_open: true,
+                height: 300,
+            });
+            const scroll = place(root, 100, { top: 100, bottom: 120 });
+            expect(scroll.style.getPropertyValue("--fade-top-offset")).toBe("20px");
+            element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, list_open: true } as AdsbReceiverCardConfig);
+            await element.updateComplete;
+            expect(root.querySelector("ha-card")!.classList.contains("held")).toBe(false);
+            expect(root.querySelector("ha-card > .scroll")).toBe(scroll);
+            expect(scroll.style.getPropertyValue("--fade-top-offset")).toBe("");
+        });
+
+        it("leaves the top fade where it is in the auto mode, column heads or not", async () => {
+            const { root } = await withList([{ aircraft: [{ ...PLANE, heard: heard(1) }], altitude_unit: "m" }]);
+            expect(place(root, 100, { top: 100, bottom: 120 }).style.getPropertyValue("--fade-top-offset")).toBe("");
         });
 
         it("isn't there without ADS-B Live's action, as with a version from before it", async () => {
@@ -956,58 +1027,152 @@ describe("adsb-receiver-card", () => {
             expect(rows(root).map((row) => text(row.querySelector(".callsign")))).toEqual(["NEW", "ALFA", "BETA", "OLD"]);
         });
 
-        // A sections view's rows set the height when they are a number. Otherwise max_height is the most the card grows to,
-        // and only the list scrolls inside it.
+        // A sections view's rows set the height when they are a number. Otherwise the height mode does, and everything
+        // under the figures scrolls together.
         describe("the card's height", () => {
-            it.each([
-                { layout: undefined, rows: undefined, max_height: undefined, style: "" },
-                { layout: undefined, rows: undefined, max_height: 300, style: "max-height: 300px;" },
-                { layout: "grid", rows: 6, max_height: 300, style: "height: 100%;" },
-                { layout: "grid", rows: 6, max_height: undefined, style: "height: 100%;" },
-                { layout: "grid", rows: "auto", max_height: 300, style: "max-height: 300px;" },
-                { layout: "grid", rows: undefined, max_height: undefined, style: "" },
-                { layout: "grid", rows: undefined, max_height: 300, style: "max-height: 300px;" },
-                { layout: "grid", rows: "auto", max_height: undefined, style: "" },
+            it.each<[string, string | undefined, Record<string, unknown>, string]>([
+                ["its content", undefined, {}, ""],
+                ["a fixed height", undefined, { height_mode: "fixed", height: 240, max_height: 300 }, "height: 240px"],
+                ["a maximum height", undefined, { max_height: 300 }, "max-height: 300px"],
+                ["its content in the auto mode", undefined, { height_mode: "auto", height: 240 }, ""],
+                ["grid rows in a sections view, over its mode", "grid", { height: 240, grid_options: { rows: 6 } }, "height: 100%"],
+                ["grid rows in a sections view, with no height", "grid", { grid_options: { rows: 6 } }, "height: 100%"],
+                [
+                    "its mode when the grid rows are automatic",
+                    "grid",
+                    { max_height: 300, grid_options: { rows: "auto" } },
+                    "max-height: 300px",
+                ],
+                ["its content in a sections view with no rows", "grid", {}, ""],
                 // Rows left in the configuration from a sections view mean nothing elsewhere.
-                { layout: undefined, rows: 6, max_height: 300, style: "max-height: 300px;" },
-                { layout: undefined, rows: 6, max_height: undefined, style: "" },
-                { layout: undefined, rows: "auto", max_height: 300, style: "max-height: 300px;" },
-                { layout: undefined, rows: "auto", max_height: undefined, style: "" },
-            ])(
-                "is '$style' in the layout $layout with rows $rows and max_height $max_height",
-                async ({ layout, rows: gridRows, max_height, style }) => {
-                    const element = document.createElement("adsb-receiver-card");
+                [
+                    "its mode, with rows left from a sections view",
+                    undefined,
+                    { max_height: 300, grid_options: { rows: 6 } },
+                    "max-height: 300px",
+                ],
+                ["its content, with rows left from a sections view", undefined, { grid_options: { rows: 6 } }, ""],
+            ])("sizes itself by %s", async (_name, layout, extra, style) => {
+                const element = document.createElement("adsb-receiver-card");
+                element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, ...extra } as AdsbReceiverCardConfig);
+                (element as unknown as { layout?: string }).layout = layout;
+                element.hass = hass();
+                document.body.append(element);
+                await element.updateComplete;
+                const drawn = element.shadowRoot!.querySelector("ha-card")!;
+                expect(drawn.getAttribute("style") ?? "").toBe(style);
+                expect(drawn.classList.contains("held")).toBe(style !== "");
+            });
+
+            it.each([
+                ["its content", {}, 6],
+                ["a fixed height", { height: 400 }, 8],
+                ["a maximum height above its content", { max_height: 1000 }, 6],
+                ["a maximum height below its content", { max_height: 200 }, 4],
+                ["one row in the compact layout, whatever its height", { layout: "compact", height: 400 }, 1],
+            ])("sizes itself in a masonry view by %s", (_name, extra, size) => {
+                const element = document.createElement("adsb-receiver-card");
+                element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, ...extra } as AdsbReceiverCardConfig);
+                expect(element.getCardSize()).toBe(size);
+            });
+
+            // Feeders and an open list only add to what scrolls. The compact layout's row sets its own height.
+            it.each<[string, Partial<AdsbReceiverCardConfig>, number | undefined]>([
+                ["the default", {}, 4],
+                ["feeders and an open list", { list_open: true, feeders: [{ entity: "binary_sensor.fr24_link" }] }, 4],
+                ["the compact layout", { layout: "compact" }, undefined],
+            ])("keeps to its minimum height in a sections view with %s", (_name, extra, rows) => {
+                const element = document.createElement("adsb-receiver-card");
+                element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, ...extra } as AdsbReceiverCardConfig);
+                expect(element.getGridOptions().min_rows).toBe(rows);
+            });
+
+            it.each([
+                ["held to a height", undefined, { height: 300 }, ["fade-bottom"]],
+                ["held up to a limit", undefined, { max_height: 300 }, ["fade-bottom"]],
+                ["held by rows in a sections view", "grid", { grid_options: { rows: 4 } }, ["fade-bottom"]],
+                [
+                    "held to a height with automatic rows in a sections view",
+                    "grid",
+                    { height: 300, grid_options: { rows: "auto" } },
+                    ["fade-bottom"],
+                ],
+                [
+                    "held by the older layout options' rows in a sections view",
+                    "grid",
+                    { layout_options: { grid_rows: 4 } },
+                    ["fade-bottom"],
+                ],
+                ["never in auto", undefined, {}, []],
+                ["never in auto with automatic rows in a sections view", "grid", { grid_options: { rows: "auto" } }, []],
+                ["never by grid rows outside a sections view", undefined, { grid_options: { rows: 4 } }, []],
+            ])("fades the bottom edge of a scroller that runs past it when %s", async (_name, layout, extra, expected) => {
+                const element = await card(hass(), extra as Partial<AdsbReceiverCardConfig>, layout);
+                const scroll = element.shadowRoot!.querySelector<HTMLElement>("ha-card > .scroll")!;
+                Object.defineProperty(scroll, "scrollHeight", { value: 600, configurable: true });
+                Object.defineProperty(scroll, "clientHeight", { value: 200, configurable: true });
+                element.requestUpdate();
+                await element.updateComplete;
+                expect(["fade-top", "fade-bottom"].filter((name) => scroll.classList.contains(name))).toEqual(expected);
+            });
+
+            it("lets go of the scroller's fade when the card goes from held to auto, and fades it again when held again", async () => {
+                const element = await card(hass(), { height: 300 });
+                const scroll = element.shadowRoot!.querySelector<HTMLElement>("ha-card > .scroll")!;
+                Object.defineProperty(scroll, "scrollHeight", { value: 600, configurable: true });
+                Object.defineProperty(scroll, "clientHeight", { value: 200, configurable: true });
+                element.requestUpdate();
+                await element.updateComplete;
+                expect([...scroll.classList].filter((name) => name.startsWith("fade"))).toEqual(["fades", "fade-bottom"]);
+                element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER } as AdsbReceiverCardConfig);
+                await element.updateComplete;
+                expect([...scroll.classList].filter((name) => name.startsWith("fade"))).toEqual([]);
+                element.setConfig({ type: "custom:adsb-receiver-card", device: RECEIVER, height: 300 } as AdsbReceiverCardConfig);
+                await element.updateComplete;
+                expect([...scroll.classList].filter((name) => name.startsWith("fade"))).toEqual(["fades", "fade-bottom"]);
+            });
+
+            it("is held by its rows once moved into a sections view, even when another entity's change comes with it", async () => {
+                const state = hass();
+                const element = await card(state, { grid_options: { rows: 4 } } as Partial<AdsbReceiverCardConfig>);
+                expect(element.shadowRoot!.querySelector("ha-card")!.classList.contains("held")).toBe(false);
+                element.layout = "grid";
+                element.hass = { ...state, states: { ...state.states, "sensor.unrelated": entity("sensor.unrelated", "1") } };
+                await element.updateComplete;
+                expect(element.shadowRoot!.querySelector("ha-card")!.classList.contains("held")).toBe(true);
+            });
+
+            it("raises a fixed height below its minimum to the minimum", async () => {
+                const element = await card(hass(), { height: 100 });
+                expect(element.shadowRoot!.querySelector("ha-card")!.getAttribute("style")).toBe("height: 220px");
+            });
+        });
+
+        describe("a height that isn't a number of pixels, or an unknown height mode", () => {
+            it.each([
+                { max_height: 0 },
+                { max_height: -10 },
+                { max_height: "300px" },
+                { max_height: Number.NaN },
+                { height: 0 },
+                { height: "240px" },
+                { height_mode: "tall" },
+            ])("is refused: %o", (extra) => {
+                const element = document.createElement("adsb-receiver-card");
+                expect(() =>
                     element.setConfig({
                         type: "custom:adsb-receiver-card",
                         device: RECEIVER,
-                        ...(max_height === undefined ? {} : { max_height }),
-                        ...(gridRows === undefined ? {} : { grid_options: { rows: gridRows } }),
-                    } as AdsbReceiverCardConfig);
-                    (element as unknown as { layout?: string }).layout = layout;
-                    element.hass = hass();
-                    document.body.append(element);
-                    await element.updateComplete;
-                    const drawn = element.shadowRoot!.querySelector("ha-card")!;
-                    expect(drawn.getAttribute("style") ?? "").toBe(style);
-                    expect(drawn.classList.contains("held")).toBe(style !== "");
-                },
-            );
+                        ...extra,
+                    } as unknown as AdsbReceiverCardConfig),
+                ).toThrow(/^Invalid height\./);
+            });
         });
 
-        describe("a max_height that isn't a number of pixels", () => {
-            it.each([{ max_height: 0 }, { max_height: -10 }, { max_height: "300px" }, { max_height: Number.NaN }])(
-                "is refused: $max_height",
-                ({ max_height }) => {
-                    const element = document.createElement("adsb-receiver-card");
-                    expect(() =>
-                        element.setConfig({
-                            type: "custom:adsb-receiver-card",
-                            device: RECEIVER,
-                            max_height,
-                        } as unknown as AdsbReceiverCardConfig),
-                    ).toThrow("Invalid configuration");
-                },
-            );
+        it("takes a height left empty in YAML as unset", () => {
+            const element = document.createElement("adsb-receiver-card");
+            const config = { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: null, height: null, max_height: null };
+            expect(() => element.setConfig(config as unknown as AdsbReceiverCardConfig)).not.toThrow();
         });
     });
 
@@ -1047,8 +1212,18 @@ describe("the editor", () => {
             },
             {
                 case: "the list open and a height",
-                form: { type: "custom:adsb-receiver-card", device: RECEIVER, list_open: true, max_height: 480 },
+                form: { type: "custom:adsb-receiver-card", device: RECEIVER, list_open: true, height_mode: "max", max_height: 480 },
                 saved: { type: "custom:adsb-receiver-card", device: RECEIVER, list_open: true, max_height: 480 },
+            },
+            {
+                case: "the auto height mode shown for a configuration without one",
+                form: { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: "auto" },
+                saved: { type: "custom:adsb-receiver-card", device: RECEIVER },
+            },
+            {
+                case: "a fixed height with a maximum height kept",
+                form: { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: "fixed", height: 300, max_height: 480 },
+                saved: { type: "custom:adsb-receiver-card", device: RECEIVER, height: 300, max_height: 480 },
             },
             {
                 case: "a feeder with empty fields",
