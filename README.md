@@ -51,7 +51,7 @@ the same area, from the receivers of its community, so the map shows the traffic
 
 Each receiver is set up once. Several receivers can be added, each as its own entry.
 
-| Setting       | Type | Description                                                                                                                                                              | Default                                                        |
+| Name          | Type | Description                                                                                                                                                              | Default                                                        |
 | ------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
 | Name          | text | The receiver's name, which its sensors are named after.                                                                                                                  | `ADS-B`                                                        |
 | Address       | URL  | The address of tar1090, or of readsb's own web server, such as `http://192.168.1.20:8080` or `http://raspberrypi.local/tar1090`. Its `data/` folder has `aircraft.json`. |                                                                |
@@ -70,7 +70,7 @@ new address is checked, so the language and unit can be changed while the receiv
 Add a feed from the integration page with **Add aircraft feed**. Each feed is a map feed sensor, a nearest aircraft
 sensor and an event entity, named after the feed.
 
-| Setting                             | Type    | Description                                                                                                                                                                                         | Default                             |
+| Name                                | Type    | Description                                                                                                                                                                                         | Default                             |
 | ----------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
 | Name                                | text    | The name its sensors and event entity are named after.                                                                                                                                              |                                     |
 | Area                                | circle  | Aircraft inside the circle are in the feed.                                                                                                                                                         | 100 km around the receiver, or home |
