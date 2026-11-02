@@ -147,7 +147,7 @@ export class AdsbReceiverCard extends LitElement {
     }
 
     /**
-     * In a sections view the card takes a whole section by default. Below 9 columns, 140 px on a phone, its texts have too
+     * In a sections view the card takes a whole section by default. Below 9 columns, 214 px on a phone, its texts have too
      * little room. Held, the compact layout is one row at any width.
      */
     public getGridOptions(): Record<string, unknown> {

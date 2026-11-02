@@ -1401,7 +1401,7 @@ var AdsbReceiverCard = class extends i4 {
     return this.compact() ? 1 : heightCardSize(this.config ?? {}, 6 + Math.max(4, this.config?.feeders?.length ?? 0), this.minimumHeight());
   }
   /**
-   * In a sections view the card takes a whole section by default. Below 9 columns, 140 px on a phone, its texts have too
+   * In a sections view the card takes a whole section by default. Below 9 columns, 214 px on a phone, its texts have too
    * little room. Held, the compact layout is one row at any width.
    */
   getGridOptions() {
