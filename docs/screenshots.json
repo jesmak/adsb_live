@@ -1301,6 +1301,13 @@
             "friendly_name": "fr24feed reported",
             "unit_of_measurement": "aircraft"
           }
+        },
+        "binary_sensor.fr24feed_link": {
+          "state": "off",
+          "attributes": {
+            "friendly_name": "fr24feed link",
+            "device_class": "connectivity"
+          }
         }
       },
       "card": {
@@ -1313,22 +1320,6 @@
             "detail": "sensor.fr24feed_reported"
           }
         ]
-      }
-    },
-    {
-      "name": "receiver-list",
-      "width": 400,
-      "card": {
-        "type": "custom:adsb-receiver-card",
-        "device": "receiver",
-        "feeders": [
-          {
-            "entity": "binary_sensor.fr24feed_link",
-            "name": "Flightradar24",
-            "detail": "sensor.fr24feed_reported"
-          }
-        ],
-        "list_open": true
       }
     }
   ]

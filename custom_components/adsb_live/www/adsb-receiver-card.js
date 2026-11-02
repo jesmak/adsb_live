@@ -725,6 +725,7 @@ var en_default = {
     description: "The state of an ADS-B receiver from the ADS-B Live integration",
     invalid_configuration: "Invalid configuration. Pick a receiver.",
     invalid_height: "Invalid height. height and max_height must be positive numbers of pixels, and height_mode auto, fixed or max.",
+    invalid_row_step: "Invalid rounding. row_step must be full or half.",
     no_receiver: "Receiver not found",
     no_entity: "Entity {entity} not found"
   },
@@ -746,15 +747,20 @@ var en_default = {
   curve: {
     past: "{hours} h ago",
     now: "now",
-    peak: "peak {value}"
+    peak: "peak {value}",
+    point: "{time} \xB7 {value} tracked on average",
+    point_now: "now \xB7 {value} tracked"
   },
   meter: {
     signal: "Signal",
     noise: "Noise",
-    signal_unknown: "Signal unknown"
+    signal_unknown: "Signal unknown",
+    noise_short: "N",
+    signal_short: "S"
   },
   list: {
     title: "Aircraft heard",
+    title_short: "Aircraft",
     name_type: "Callsign \xB7 type",
     altitude: "Altitude",
     signal: "Signal",
@@ -768,6 +774,10 @@ var en_default = {
     empty: "No aircraft heard in the last minute",
     failed: "The aircraft couldn't be read"
   },
+  feeders: {
+    title: "Feeders",
+    problem: "A feeder has a problem"
+  },
   editor: {
     device: "Receiver",
     name: "Name",
@@ -775,19 +785,21 @@ var en_default = {
     layout: "Layout",
     layout_full: "Full",
     layout_compact: "Compact, one row",
-    list_open: "Aircraft list open at first",
-    list_open_helper: "Otherwise the list opens from its heading",
     height_mode: "Height",
     height_mode_helper: "A height set in the layout tab of a sections view is used instead. Shown in the full layout.",
     height_mode_auto: "Fits the content",
     height_mode_fixed: "Fixed",
     height_mode_max: "Grows up to a limit",
     height: "Fixed height",
-    height_helper: "The card is always this tall, and everything under the figures scrolls inside it.",
+    height_helper: "The card is always this tall, and the aircraft's or feeders' rows scroll inside it.",
     max_height: "Maximum height",
-    max_height_helper: "The card grows with its content up to this height, and then everything under the figures scrolls.",
+    max_height_helper: "The card grows with its content up to this height, and then the aircraft's or feeders' rows scroll.",
+    row_step: "Rounding in a sections view",
+    row_step_helper: "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
+    row_step_full: "Whole rows",
+    row_step_half: "Half rows",
     feeders: "Feeders",
-    feeders_helper: "Other feeders' status as rows under the receiver, such as Flightradar24's. Shown in the full layout.",
+    feeders_helper: "Other feeders' status, such as Flightradar24's, as rows on a tab of their own. Shown in the full layout.",
     feeder_entity: "Status",
     feeder_entity_helper: "Whether the feeder is up",
     feeder_name: "Name",
@@ -804,6 +816,7 @@ var fi_default = {
     description: "ADS-B-vastaanottimen tila ADS-B Live -integraatiosta",
     invalid_configuration: "Virheellinen konfiguraatio. Valitse vastaanotin.",
     invalid_height: "Virheellinen korkeus. Korkeuksien (height ja max_height) on oltava positiivisia lukuja pikselein\xE4, ja korkeustilan (height_mode) auto, fixed tai max.",
+    invalid_row_step: "Virheellinen py\xF6ristys. Py\xF6ristyksen (row_step) on oltava full tai half.",
     no_receiver: "Vastaanotinta ei l\xF6ydy",
     no_entity: "Entiteetti\xE4 {entity} ei l\xF6ydy"
   },
@@ -825,15 +838,20 @@ var fi_default = {
   curve: {
     past: "{hours} h sitten",
     now: "nyt",
-    peak: "huippu {value}"
+    peak: "huippu {value}",
+    point: "klo {time} \xB7 keskim\xE4\xE4rin {value} seurannassa",
+    point_now: "nyt \xB7 {value} seurannassa"
   },
   meter: {
     signal: "Signaali",
     noise: "Kohina",
-    signal_unknown: "Signaali ei tiedossa"
+    signal_unknown: "Signaali ei tiedossa",
+    noise_short: "K",
+    signal_short: "S"
   },
   list: {
     title: "Kuultavat koneet",
+    title_short: "Koneet",
     name_type: "Tunnus \xB7 tyyppi",
     altitude: "Korkeus",
     signal: "Signaali",
@@ -847,6 +865,10 @@ var fi_default = {
     empty: "Viimeisen minuutin aikana ei ole kuultu koneita",
     failed: "Koneita ei saatu luettua"
   },
+  feeders: {
+    title: "Sy\xF6tteet",
+    problem: "Sy\xF6tteess\xE4 on ongelma"
+  },
   editor: {
     device: "Vastaanotin",
     name: "Nimi",
@@ -854,19 +876,21 @@ var fi_default = {
     layout: "Asettelu",
     layout_full: "T\xE4ysi",
     layout_compact: "Tiivis, yksi rivi",
-    list_open: "Koneiden lista auki alussa",
-    list_open_helper: "Muuten lista avautuu otsikostaan",
     height_mode: "Korkeus",
     height_mode_helper: "Osioihin jaetun n\xE4kym\xE4n asettelu-v\xE4lilehdell\xE4 asetettu korkeus ohittaa t\xE4m\xE4n. N\xE4kyy t\xE4ydess\xE4 asettelussa.",
     height_mode_auto: "Sis\xE4ll\xF6n mukaan",
     height_mode_fixed: "Kiinte\xE4",
     height_mode_max: "Kasvaa rajaan asti",
     height: "Kiinte\xE4 korkeus",
-    height_helper: "Kortti on aina n\xE4in korkea, ja kaikki lukujen alla vierii sen sis\xE4ll\xE4.",
+    height_helper: "Kortti on aina n\xE4in korkea, ja koneiden tai sy\xF6tteiden rivit vieriv\xE4t sen sis\xE4ll\xE4.",
     max_height: "Enimm\xE4iskorkeus",
-    max_height_helper: "Kortti kasvaa sis\xE4lt\xF6ns\xE4 mukana t\xE4h\xE4n korkeuteen asti, ja sen j\xE4lkeen kaikki lukujen alla vierii.",
+    max_height_helper: "Kortti kasvaa sis\xE4lt\xF6ns\xE4 mukana t\xE4h\xE4n korkeuteen asti, ja sen j\xE4lkeen koneiden tai sy\xF6tteiden rivit vieriv\xE4t.",
+    row_step: "Py\xF6ristys osioihin jaetussa n\xE4kym\xE4ss\xE4",
+    row_step_helper: "Automaattisella rivikorkeudella kortin korkeus py\xF6ristet\xE4\xE4n yl\xF6sp\xE4in kokonaisiin riveihin, tai tilan s\xE4\xE4st\xE4miseksi puolikkaisiin riveihin.",
+    row_step_full: "Kokonaisiin riveihin",
+    row_step_half: "Puolikkaisiin riveihin",
     feeders: "Sy\xF6tteet",
-    feeders_helper: "Muiden sy\xF6tt\xE4jien tila rivein\xE4 vastaanottimen alla, esimerkiksi Flightradar24:n. N\xE4kyy t\xE4ydess\xE4 asettelussa.",
+    feeders_helper: "Muiden sy\xF6tt\xE4jien, esimerkiksi Flightradar24:n, tila rivein\xE4 omalla v\xE4lilehdell\xE4\xE4n. N\xE4kyy t\xE4ydess\xE4 asettelussa.",
     feeder_entity: "Tila",
     feeder_entity_helper: "Onko sy\xF6tt\xE4j\xE4 toiminnassa",
     feeder_name: "Nimi",
@@ -900,6 +924,41 @@ function browserLanguage() {
   return document.documentElement.lang || navigator.language || "en";
 }
 
+// src/rows.ts
+var ROW_STEPS = ["full", "half"];
+var ROW_PX = 64;
+var ROW_GAP_PX = 8;
+function validRowStep(config) {
+  return config.row_step === void 0 || config.row_step === null || ROW_STEPS.includes(config.row_step);
+}
+function filledHeight(content, config) {
+  const step = config.row_step === "half" ? ROW_PX / 2 : ROW_PX;
+  return Math.max(1, Math.ceil((content + ROW_GAP_PX) / step)) * step - ROW_GAP_PX;
+}
+function rowStepSchema(config, text) {
+  if (heightMode(config) !== "auto") {
+    return [];
+  }
+  return [
+    {
+      name: "row_step",
+      selector: {
+        select: { mode: "dropdown", options: ROW_STEPS.map((value) => ({ value, label: text(`editor.row_step_${value}`) })) }
+      }
+    }
+  ];
+}
+function rowStepData(config) {
+  return { ...config, row_step: config.row_step ?? "full" };
+}
+function tidyRowStep(config) {
+  const tidied = { ...config };
+  if (tidied.row_step !== "half" || heightMode(tidied) !== "auto") {
+    delete tidied.row_step;
+  }
+  return tidied;
+}
+
 // src/editor.ts
 function receiverSchema(config, text) {
   return [
@@ -921,9 +980,20 @@ function receiverSchema(config, text) {
         }
       }
     },
-    { name: "list_open", selector: { boolean: {} } },
-    ...heightSchema(config, text)
+    // The compact layout has no height mode, and so always offers its row step.
+    ...compact(config) ? [] : heightSchema(config, text),
+    ...rowStepSchema(compact(config) ? withoutHeight(config) : config, text)
   ];
+}
+function compact(config) {
+  return config.layout === "compact";
+}
+function withoutHeight(config) {
+  const rest = { ...config };
+  delete rest.height_mode;
+  delete rest.height;
+  delete rest.max_height;
+  return rest;
 }
 function feedersSchema(text) {
   return [
@@ -972,7 +1042,7 @@ var AdsbReceiverCardEditor = class extends i4 {
     if (!this.hass || !this.config) {
       return A;
     }
-    const data = { layout: "full", ...heightData(this.config) };
+    const data = { layout: "full", ...rowStepData(compact(this.config) ? withoutHeight(this.config) : heightData(this.config)) };
     return b2`
             <ha-form
                 .hass=${this.hass}
@@ -1004,7 +1074,8 @@ var AdsbReceiverCardEditor = class extends i4 {
         `;
   }
   valueChanged(event) {
-    const config = tidyHeight(event.detail.value);
+    const value = compact(event.detail.value) ? withoutHeight(event.detail.value) : event.detail.value;
+    const config = tidyRowStep(tidyHeight(value));
     const feeders = compactFeeders(config.feeders);
     if (feeders.length) {
       config.feeders = feeders;
@@ -1014,11 +1085,9 @@ var AdsbReceiverCardEditor = class extends i4 {
     if (!config.name) {
       delete config.name;
     }
+    delete config.list_open;
     if (!config.layout || config.layout === "full") {
       delete config.layout;
-    }
-    if (!config.list_open) {
-      delete config.list_open;
     }
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
   }
@@ -1262,41 +1331,46 @@ function linePath(points, start, end, width, height, max) {
 
 // src/adsb-receiver-card.ts
 var HOUR = 36e5;
-var CURVE = { width: 360, height: 44 };
+var CURVE = { width: 360, height: 36 };
 var SMALL_CURVE = { width: 90, height: 32 };
+var TABS_PX = 32;
+var LEAST_PX = [
+  [160, 376],
+  [0, 383]
+];
+var px = (value) => parseFloat(value) || 0;
 var AdsbReceiverCard = class extends i4 {
   constructor() {
     super();
     this.history = [];
     this.historyLoaded = false;
-    this.listOpen = false;
     this.aircraftFailed = false;
     this.clock = Date.now();
     this.aircraftReadAt = 0;
     this.aircraftReading = false;
+    this.width = 0;
+    this.filled = 0;
+    this.spare = 0;
+    this.resizes = typeof ResizeObserver === "undefined" ? void 0 : new ResizeObserver(() => this.measureSoon());
     /**
-     * Has a held card's top fade start under the list's column heads while they are stuck at the top of the scroller,
-     * rather than fade them. Stuck, the heads' top is at the scroller's, or above it once the list's end pushes them up.
-     * They cover only as far as the fold shows them: nothing while it is shut, and less as it slides shut, as the heads
-     * stay in it then. It runs again when the fold's slide ends, as a fold shut from the editor redraws while still open.
+     * Has a held card's top fade start under the list's column heads while they are stuck at the top of the pane, rather
+     * than fade them. Stuck, the heads' top is at the pane's, or above it once the list's end pushes them up.
      */
     this.placeTopFade = () => {
-      const scroll = this.renderRoot.querySelector("ha-card > .scroll");
-      if (!scroll) {
+      const pane = this.renderRoot.querySelector("ha-card > .pane");
+      if (!pane) {
         return;
       }
-      const held = scroll.closest("ha-card.held");
-      const head = held ? scroll.querySelector(".plane-head")?.getBoundingClientRect() : void 0;
-      const fold = head ? scroll.querySelector(".fold-in")?.getBoundingClientRect() : void 0;
-      const top = scroll.getBoundingClientRect().top;
-      const covered = head && fold && fold.bottom > fold.top && head.top <= top + 0.5 ? Math.max(0, Math.min(head.bottom, fold.bottom) - top) : 0;
+      const head = pane.closest("ha-card.held") ? pane.querySelector(".plane-head")?.getBoundingClientRect() : void 0;
+      const top = pane.getBoundingClientRect().top;
+      const covered = head && head.top <= top + 0.5 ? Math.max(0, head.bottom - top) : 0;
       if (covered > 0) {
-        scroll.style.setProperty("--fade-top-offset", `${covered}px`);
+        pane.style.setProperty("--fade-top-offset", `${covered}px`);
       } else {
-        scroll.style.removeProperty("--fade-top-offset");
+        pane.style.removeProperty("--fade-top-offset");
       }
     };
-    new ScrollFade(this, () => this.heightStyle() ? this.renderRoot.querySelectorAll("ha-card > .scroll") : []);
+    new ScrollFade(this, () => this.heightStyle() ? this.renderRoot.querySelectorAll("ha-card > .pane") : []);
   }
   static getConfigElement() {
     return document.createElement("adsb-receiver-card-editor");
@@ -1312,48 +1386,44 @@ var AdsbReceiverCard = class extends i4 {
     if (!validHeight(config)) {
       throw new Error(translate(browserLanguage(), "common.invalid_height"));
     }
-    const previous = this.config;
-    if (!previous || previous.list_open === true !== (config.list_open === true)) {
-      this.listOpen = config.list_open === true;
+    if (!validRowStep(config)) {
+      throw new Error(translate(browserLanguage(), "common.invalid_row_step"));
     }
-    if (previous && previous.device !== config.device) {
+    if (this.config && this.config.device !== config.device) {
       this.aircraft = void 0;
       this.aircraftFailed = false;
       this.aircraftOf = config.device;
       this.aircraftReadAt = 0;
     }
     this.config = { ...config, feeders: Array.isArray(config.feeders) ? config.feeders.filter((feeder) => !!feeder?.entity) : [] };
-    if (this.isConnected) {
-      if (this.listOpen) {
-        this.startList();
-      } else {
-        this.stopList();
-      }
-    }
   }
   getCardSize() {
-    return this.compact() ? 1 : heightCardSize(this.config ?? {}, 6 + (this.config?.feeders?.length ?? 0), this.minimumHeight());
+    return this.compact() ? 1 : heightCardSize(this.config ?? {}, 6 + Math.max(4, this.config?.feeders?.length ?? 0), this.minimumHeight());
   }
   /**
-   * In a sections view the card takes a whole section by default and is never narrower than half of one. The full
-   * layout is never lower than its minimum height, while the compact one is a row whose height its content sets.
+   * In a sections view the card takes a whole section by default. Below 9 columns, 140 px on a phone, its texts have too
+   * little room. Held, the compact layout is one row at any width.
    */
   getGridOptions() {
-    return { columns: 12, min_columns: 6, rows: "auto", ...this.compact() ? {} : { min_rows: gridMinRows(this.minimumHeight()) } };
+    return { columns: 12, min_columns: 9, rows: "auto", min_rows: this.compact() ? 1 : gridMinRows(this.minimumHeight()) };
   }
   /** The curve is read when the card comes on the page and every few minutes while it stays there. */
   connectedCallback() {
     super.connectedCallback();
     this.timer = setInterval(() => void this.loadHistory(true), HISTORY_REFRESH_MS);
     void this.loadHistory(true);
-    if (this.listOpen) {
-      this.startList();
+    if (this.shownPane() === "aircraft") {
+      this.clock = Date.now();
     }
+    this.followPane();
   }
   disconnectedCallback() {
     super.disconnectedCallback();
     clearInterval(this.timer);
     this.stopList();
+    this.resizes?.disconnect();
+    cancelAnimationFrame(this.frame ?? 0);
+    this.hover = void 0;
   }
   shouldUpdate(changed) {
     const previous = changed.get("hass");
@@ -1365,15 +1435,88 @@ var AdsbReceiverCard = class extends i4 {
     }
     return this.watched().some((id) => previous.states[id] !== this.hass?.states[id]);
   }
-  /** A redraw while the list is on the card shows its ages as they are now, also the first one after it comes back. */
+  /** A redraw while the aircraft are shown shows their ages as they are now, also the first one after they come back. */
   willUpdate() {
-    if (this.listOpen && this.listShown()) {
+    if (this.shownPane() === "aircraft") {
       this.clock = Date.now();
     }
+    if (this.hover && !this.curveShown()) {
+      this.hover = void 0;
+    }
+  }
+  /** Whether the full layout draws its curve: a receiver that isn't unavailable, with its aircraft tracked sensor. */
+  curveShown() {
+    const hass = this.hass;
+    if (!hass || !this.config || this.compact() || !hass.devices?.[this.config.device]) {
+      return false;
+    }
+    const sensors = receiverSensors(hass, this.config.device);
+    return !!sensors.aircraft_tracked && receiverStatus(hass, sensors) !== "unavailable";
   }
   updated() {
     void this.loadHistory(false);
+    this.followPane();
     this.placeTopFade();
+    if (!this.isConnected) {
+      return;
+    }
+    const card = this.renderRoot.querySelector("ha-card");
+    if (card) {
+      this.resizes?.observe(card);
+    }
+    this.measureSoon();
+  }
+  measureSoon() {
+    cancelAnimationFrame(this.frame ?? 0);
+    this.frame = requestAnimationFrame(() => this.fillRows());
+  }
+  /**
+   * In a sections view whose rows are left automatic, the card takes the whole rows its content needs, or the half rows
+   * with `row_step: half`, so the cards under it stay on the rows. The room left over goes under the top, in the compact
+   * layout around its row. Held to a height, the room the pane doesn't need stays at its bottom, so the fixed part
+   * doesn't move when the other tab is picked.
+   */
+  fillRows() {
+    const card = this.renderRoot.querySelector("ha-card");
+    if (!card || !card.clientWidth) {
+      return;
+    }
+    const width = Math.round(card.getBoundingClientRect().width);
+    if (width !== this.width) {
+      this.width = width;
+    }
+    if (this.layout !== "grid" || this.held() || card.classList.contains("message")) {
+      if (this.filled) this.filled = 0;
+      if (this.spare) this.spare = 0;
+      return;
+    }
+    const parts = card.querySelectorAll(
+      ":scope > .top, :scope > .figures, :scope > .curve, :scope > .meter, :scope > .tabs, :scope > .pane, :scope > .row"
+    );
+    const last = parts[parts.length - 1];
+    if (!last) {
+      return;
+    }
+    const style = getComputedStyle(card);
+    let content = last.getBoundingClientRect().bottom + px(getComputedStyle(last).marginBottom) - card.getBoundingClientRect().top + px(style.paddingBottom) + px(style.borderBottomWidth);
+    const top = card.querySelector(":scope > .top");
+    content -= top ? px(getComputedStyle(top).paddingBottom) : 0;
+    const filled = filledHeight(Math.round(content), this.config ?? {});
+    const spare = Math.max(0, Math.floor(filled - content));
+    if (filled !== this.filled) {
+      this.filled = filled;
+    }
+    if (spare !== this.spare) {
+      this.spare = spare;
+    }
+  }
+  /** The card's inline style: the height it is held to, or the rows it fills, with their spare room under the top. */
+  cardStyle() {
+    const held = this.heightStyle();
+    if (held || !this.filled) {
+      return held;
+    }
+    return `min-height: ${this.filled}px; --spare: ${this.spare}px`;
   }
   watched() {
     if (!this.hass || !this.config) {
@@ -1416,21 +1559,32 @@ var AdsbReceiverCard = class extends i4 {
     const status = receiverStatus(this.hass, sensors);
     return this.compact() ? this.compactCard(sensors, status) : this.fullCard(sensors, status);
   }
+  /**
+   * The full layout: a fixed part with the receiver, its figures, the curve and the meter, and under it a pane with the
+   * aircraft heard or the other feeders, under tabs when it has both (see `shownPane`). Held to a height, only the pane
+   * scrolls.
+   */
   fullCard(sensors, status) {
     const device = this.hass?.devices?.[this.config?.device ?? ""];
     const version = device?.sw_version ? [device.manufacturer, device.sw_version].filter(Boolean).join(" ") : "";
     const available = status !== "unavailable";
-    const height = this.heightStyle();
+    const name = receiverName(this.hass, this.config);
+    const statusText = this.text(`status.${status}`);
+    const line = available ? [statusText, ...this.rates(sensors)] : [statusText];
+    const pane = this.shownPane();
     return b2`
-            <ha-card class="full ${status} ${height ? "held" : ""}" style=${height}>
+            <ha-card class="full ${status} ${this.held() ? "held" : ""}" style=${this.cardStyle()}>
                 <div class="top">
                     ${this.icon()}
                     <div class="who">
-                        <div class="name">${receiverName(this.hass, this.config)}</div>
-                        <div class="status">${this.text(`status.${status}`)}</div>
-                        ${available ? b2`<div class="rates">${this.pieces(this.rates(sensors))}</div>` : A}
+                        <div class="first">
+                            <span class="name" title=${name}>${name}</span>
+                            ${version ? b2`<span class="version" title=${version}>${version}</span>` : A}
+                        </div>
+                        <div class="line" title=${line.join(" \xB7 ")}>
+                            <span class="status">${statusText}</span>${line.slice(1).map((part) => b2` · ${part}`)}
+                        </div>
                     </div>
-                    ${version ? b2`<div class="version">${version}</div>` : A}
                 </div>
                 ${available ? b2`
                               <div class="figures">
@@ -1438,11 +1592,12 @@ var AdsbReceiverCard = class extends i4 {
                                   ${this.figure(sensors.aircraft_with_position, "figures.with_position")}
                                   ${this.figure(sensors.max_range, "figures.range", true, { minutes: formatNumber(RANGE_MINUTES, this.numberFormat(), 0) })}
                               </div>
+                              ${this.curve(sensors)} ${this.meter(sensors)}
                           ` : A}
-                <div class="scroll" @scroll=${this.placeTopFade}>
-                    ${available ? b2`${this.curve(sensors)} ${this.meter(sensors)} ${this.aircraftList()}` : A}
-                    ${this.config?.feeders?.length ? b2`<div class="feeders">${this.config.feeders.map((feeder) => this.feeder(feeder))}</div>` : A}
-                </div>
+                ${pane ? b2`${this.panes().length > 1 ? this.tabs(sensors) : A}
+                              <div class="pane ${this.panes().length > 1 ? "" : "alone"}" @scroll=${this.placeTopFade}>
+                                  ${pane === "aircraft" ? this.planes() : this.feeders()}
+                              </div>` : A}
             </ha-card>
         `;
   }
@@ -1453,50 +1608,90 @@ var AdsbReceiverCard = class extends i4 {
       `${this.number(sensors.aircraft_with_position)} ${this.text("figures.with_position")}`,
       this.rates(sensors)[0]
     ];
+    const name = receiverName(this.hass, this.config);
+    const statusText = this.text(`status.${status}`);
     return b2`
-            <ha-card class="compact ${status}">
+            <ha-card class="compact ${status} ${this.held() ? "held" : ""}" style=${this.cardStyle()}>
                 <button class="row" @click=${() => this.moreInfo(sensors.aircraft_tracked ?? sensors.positions_per_minute)}>
                     ${this.icon()}
                     <div class="who">
-                        <div class="name">
-                            ${receiverName(this.hass, this.config)} <span class="status">${this.text(`status.${status}`)}</span>
-                        </div>
-                        ${available ? b2`<div class="line">${this.pieces(line)}</div>` : A}
+                        <div class="name" title="${name} ${statusText}">${name} <span class="status">${statusText}</span></div>
+                        ${available ? b2`<div class="line" title=${line.join(", ")}>${this.pieces(line)}</div>` : A}
                     </div>
                     ${available ? this.smallCurve(sensors) : A}
                 </button>
             </ha-card>
         `;
   }
-  /** The aircraft the receiver hears, folded under its heading. It is read only while it is open. */
-  aircraftList() {
-    if (!this.listShown()) {
-      return A;
+  /** The panes the card has: the aircraft with ADS-B Live's action while the receiver is available, the feeders when set. */
+  panes() {
+    return [...this.listShown() ? ["aircraft"] : [], ...this.config?.feeders?.length ? ["feeders"] : []];
+  }
+  /**
+   * The pane shown: the one picked from its tab, or else the feeders while one of them has a problem, and the aircraft
+   * otherwise.
+   */
+  shownPane() {
+    const panes = this.panes();
+    if (this.picked && panes.includes(this.picked)) {
+      return this.picked;
     }
-    const count = this.listOpen && this.aircraft ? this.aircraft.aircraft.length : void 0;
+    return panes.includes("feeders") && this.feederProblem() ? "feeders" : panes[0];
+  }
+  /** Whether a feeder is down, unavailable or missing. A state that says neither up nor down is no problem. */
+  feederProblem() {
+    return (this.config?.feeders ?? []).some((feeder) => {
+      const entity = this.hass?.states[feeder.entity];
+      return !entity || entity.state === "unavailable" || feederState(entity) === "error";
+    });
+  }
+  tabs(sensors) {
+    const shown = this.shownPane();
+    const tab = (pane, label, count, problem = false) => b2`
+            <button
+                class="tab ${shown === pane ? "on" : ""}"
+                role="tab"
+                aria-selected=${shown === pane ? "true" : "false"}
+                @click=${() => this.picked = pane}
+            >
+                ${label}<span class="count">${count}</span>${problem ? b2`<span
+                              class="problem"
+                              role="img"
+                              aria-label=${this.text("feeders.problem")}
+                              title=${this.text("feeders.problem")}
+                          ></span>` : A}
+            </button>
+        `;
+    const title = this.text("list.title");
     return b2`
-            <div class="aircraft">
-                <button
-                    class="list-heading ${this.listOpen ? "open" : ""}"
-                    aria-expanded=${this.listOpen ? "true" : "false"}
-                    @click=${this.toggleList}
-                >
-                    <span class="list-title">${this.text("list.title")}</span>
-                    ${count === void 0 ? A : b2`<span class="count">${formatNumber(count, this.numberFormat(), 0)}</span>`}
-                    <ha-icon icon="mdi:chevron-down"></ha-icon>
-                </button>
-                <div
-                    class="fold ${this.listOpen ? "open" : ""}"
-                    ?inert=${!this.listOpen}
-                    @transitionend=${this.placeTopFade}
-                    @transitioncancel=${this.placeTopFade}
-                >
-                    <div class="fold-in">${this.planes()}</div>
-                </div>
+            <div class="tabs" role="tablist">
+                ${this.panes().map(
+      (pane) => pane === "aircraft" ? tab(
+        pane,
+        b2`<span class="label long" title=${title}>${title}</span
+                                  ><span class="label short" title=${title}>${this.text("list.title_short")}</span>`,
+        this.aircraftCount(sensors)
+      ) : tab(
+        pane,
+        b2`<span class="label" title=${this.text("feeders.title")}>${this.text("feeders.title")}</span>`,
+        formatNumber(this.config?.feeders?.length ?? 0, this.numberFormat(), 0),
+        this.feederProblem()
+      )
+    )}
             </div>
         `;
   }
-  /** Whether the list is on the card: the full layout of a receiver that isn't unavailable, with ADS-B Live's action. */
+  /**
+   * The aircraft's count: the rows of the list while it is shown and read, so the tab never disagrees with the rows under
+   * it, and the aircraft tracked otherwise, as the list isn't read then.
+   */
+  aircraftCount(sensors) {
+    return this.shownPane() === "aircraft" && this.aircraft ? formatNumber(this.aircraft.aircraft.length, this.numberFormat(), 0) : this.number(sensors.aircraft_tracked);
+  }
+  feeders() {
+    return b2`${(this.config?.feeders ?? []).map((feeder) => this.feeder(feeder))}`;
+  }
+  /** Whether the aircraft can be on the card: the full layout of a receiver that isn't unavailable, with ADS-B Live's action. */
   listShown() {
     const hass = this.hass;
     if (!hass || !this.config || this.compact() || !hasReceiverAircraft(hass) || !hass.devices?.[this.config.device]) {
@@ -1507,18 +1702,16 @@ var AdsbReceiverCard = class extends i4 {
   }
   planes() {
     if (!this.aircraft) {
-      return this.aircraftFailed ? b2`<div class="message">${this.text("list.failed")}</div>` : A;
+      return this.aircraftFailed ? b2`<div class="message" title=${this.text("list.failed")}>${this.text("list.failed")}</div>` : A;
     }
     if (!this.aircraft.aircraft.length) {
-      return b2`<div class="message">${this.text("list.empty")}</div>`;
+      return b2`<div class="message" title=${this.text("list.empty")}>${this.text("list.empty")}</div>`;
     }
     const unit = this.aircraft.altitude_unit;
     return b2`
             <div class="planes">
                 <div class="plane-head">
-                    <span>${this.text("list.name_type")}</span>
-                    <span>${this.text("list.altitude")}</span>
-                    <span>${this.text("list.signal")}</span>
+                    ${["list.name_type", "list.altitude", "list.signal"].map((key) => b2`<span title=${this.text(key)}>${this.text(key)}</span>`)}
                 </div>
                 ${byHeard(this.aircraft.aircraft).map((plane) => this.plane(plane, unit))}
             </div>
@@ -1535,7 +1728,7 @@ var AdsbReceiverCard = class extends i4 {
     ].filter(Boolean);
     return b2`
             <div class="plane ${plane.position ? "" : "nopos"}">
-                <span class="id"
+                <span class="id" title=${[plane.name, plane.type].filter(Boolean).join(" ")}
                     ><span class="callsign">${plane.name}</span
                     >${plane.type ? b2` <span class="type">${plane.type}</span>` : A}<ha-icon
                         class="position"
@@ -1545,7 +1738,7 @@ var AdsbReceiverCard = class extends i4 {
                         title=${position}
                     ></ha-icon
                 ></span>
-                <span class="sub">${sub.join(" \xB7 ")}</span>
+                <span class="sub" title=${sub.join(" \xB7 ")}>${sub.join(" \xB7 ")}</span>
                 <span class="altitude">${altitude}</span>
                 <span class="signal"
                     >${plane.rssi === void 0 ? A : b2`<i style="width: ${Number(meterPlace(plane.rssi).toFixed(1))}%"></i>`}</span
@@ -1553,10 +1746,12 @@ var AdsbReceiverCard = class extends i4 {
             </div>
         `;
   }
-  toggleList() {
-    this.listOpen = !this.listOpen;
-    if (this.listOpen && this.isConnected) {
-      this.startList();
+  /** Reads the aircraft while they are shown on a card on the page, and stops when they aren't. */
+  followPane() {
+    if (this.isConnected && this.shownPane() === "aircraft") {
+      if (!this.listTimer) {
+        this.startList();
+      }
     } else {
       this.stopList();
     }
@@ -1564,12 +1759,8 @@ var AdsbReceiverCard = class extends i4 {
   /** Reads the list now and every AIRCRAFT_REFRESH_MS, and moves its ages on every second. */
   startList() {
     this.stopList();
-    this.clock = Date.now();
     void this.loadAircraft();
     this.listTimer = setInterval(() => {
-      if (!this.listShown()) {
-        return;
-      }
       this.clock = Date.now();
       if (this.clock - this.aircraftReadAt >= AIRCRAFT_REFRESH_MS) {
         void this.loadAircraft();
@@ -1608,23 +1799,24 @@ var AdsbReceiverCard = class extends i4 {
       this.aircraftReading = false;
     }
   }
-  /** The compact layout is a row whose height its content sets, so only the full one is held to a height. */
+  /** The compact layout is held only by a sections view's rows, which it fills with its one row at any width. */
   heightStyle() {
-    return this.compact() ? "" : heightStyle(this.config ?? {}, this.layout, this.minimumHeight());
+    const config = this.config ?? {};
+    return this.compact() ? heightStyle({ grid_options: config.grid_options, layout_options: config.layout_options }, this.layout) : heightStyle(config, this.layout, this.minimumHeight());
+  }
+  held() {
+    return this.heightStyle() !== "";
   }
   /**
-   * The lowest the full layout is held to, in pixels: its padding, the top with the name, status and rates, the
-   * figures and the curve with its caption, each with the space above it, as measured on a full section's width.
+   * The lowest the full layout is held to, in pixels, at any width the card's 9 columns or more allow, or at its measured
+   * width if narrower. The texts above the scroller keep to one line then.
    */
   minimumHeight() {
     if (this.compact()) {
       return 0;
     }
-    const padding = 30;
-    const top = 57;
-    const figures = 14 + 46;
-    const curve = 14 + 59;
-    return padding + top + figures + curve;
+    const width = this.width || Infinity;
+    return LEAST_PX.find(([least]) => width >= least)[1] - (this.config?.feeders?.length ? 0 : TABS_PX);
   }
   /** Parts of a sentence, each kept whole, so a number never wraps away from its unit. */
   pieces(parts) {
@@ -1643,10 +1835,11 @@ var AdsbReceiverCard = class extends i4 {
   }
   figure(entityId, label, withUnit = false, values = {}) {
     const unit = withUnit && entityId ? this.hass?.states[entityId]?.attributes.unit_of_measurement : void 0;
+    const text = this.text(label, values);
     return b2`
             <button class="figure" @click=${() => this.moreInfo(entityId)}>
                 <span class="value">${this.number(entityId)}${unit ? b2` <span class="unit">${unit}</span>` : A}</span>
-                <span class="label">${this.text(label, values)}</span>
+                <span class="label" title=${text}>${text}</span>
             </button>
         `;
   }
@@ -1654,13 +1847,25 @@ var AdsbReceiverCard = class extends i4 {
     if (!sensors.aircraft_tracked) {
       return A;
     }
-    const { path, peak, lone } = this.curvePath(sensors.aircraft_tracked, CURVE);
+    const { path, peak, lone, points, max, start, now } = this.curvePath(sensors.aircraft_tracked, CURVE);
+    const hover = this.hover;
     return b2`
-            <button class="curve" @click=${() => this.moreInfo(sensors.aircraft_tracked)}>
-                <svg viewBox="0 0 ${CURVE.width} ${CURVE.height}" preserveAspectRatio="none" aria-hidden="true">
-                    <line class="base" x1="0" x2=${CURVE.width} y1=${CURVE.height - 1} y2=${CURVE.height - 1}></line>
-                    <path class=${lone ? "lone" : ""} d=${path}></path>
-                </svg>
+            <button
+                class="curve"
+                @click=${() => this.moreInfo(sensors.aircraft_tracked)}
+                @pointermove=${(event) => this.pointAt(event, points, start, now, max)}
+                @pointerleave=${() => this.hover = void 0}
+            >
+                <span class="plot">
+                    <svg viewBox="0 0 ${CURVE.width} ${CURVE.height}" preserveAspectRatio="none" aria-hidden="true">
+                        <line class="base" x1="0" x2=${CURVE.width} y1=${CURVE.height - 1} y2=${CURVE.height - 1}></line>
+                        <path class=${lone ? "lone" : ""} d=${path}></path>
+                    </svg>
+                    ${hover ? b2`<span class="dot" style="left: ${hover.x}%; top: ${hover.y}%"></span
+                                  ><span class="tip ${hover.x < 25 ? "start" : hover.x > 75 ? "end" : ""}" style="left: ${hover.x}%"
+                                      >${hover.text}</span
+                                  >` : A}
+                </span>
                 <span class="caption">
                     <span>${this.text("curve.past", { hours: formatNumber(HISTORY_HOURS, this.numberFormat(), 0) })}</span>
                     <span>${peak > 0 ? this.text("curve.peak", { value: formatNumber(peak, this.numberFormat(), 0) }) : ""}</span>
@@ -1668,6 +1873,26 @@ var AdsbReceiverCard = class extends i4 {
                 </span>
             </button>
         `;
+  }
+  /** The curve's point nearest the pointer, as a dot on the line and a tooltip with its hour and value. */
+  pointAt(event, points, start, now, max) {
+    const plot = event.currentTarget.querySelector(".plot")?.getBoundingClientRect();
+    if (!plot || !plot.width || !points.length || now <= start) {
+      return;
+    }
+    const time = start + Math.min(Math.max((event.clientX - plot.left) / plot.width, 0), 1) * (now - start);
+    const point = points.reduce((best, one) => Math.abs(one.time - time) < Math.abs(best.time - time) ? one : best);
+    const format = this.numberFormat();
+    const value = formatNumber(point.value, format, Number.isInteger(point.value) ? 0 : 1);
+    const text = point.time >= now ? this.text("curve.point_now", { value }) : this.text("curve.point", {
+      time: new Intl.DateTimeFormat(this.language(), { hour: "numeric", minute: "2-digit" }).format(point.time - HOUR / 2),
+      value
+    });
+    const x2 = Number(((point.time - start) / (now - start) * 100).toFixed(1));
+    const y3 = Number(((1 - Math.min(Math.max(point.value, 0), max) / max) * 100).toFixed(1));
+    if (this.hover?.x !== x2 || this.hover.text !== text) {
+      this.hover = { x: x2, y: y3, text };
+    }
   }
   smallCurve(sensors) {
     if (!sensors.aircraft_tracked) {
@@ -1685,12 +1910,14 @@ var AdsbReceiverCard = class extends i4 {
     const start = now - HISTORY_HOURS * HOUR;
     const current = valueOf(this.hass, entityId);
     if (!this.historyLoaded) {
-      return { path: "", peak: 0, lone: false };
+      return { path: "", peak: 0, lone: false, points: [], max: 4, start, now };
     }
     const points = curvePoints(this.history, start, now, current);
     const peak = peakOf(this.history, start, current);
-    return { path: linePath(points, start, now, box.width, box.height, Math.max(peak, 4)), peak, lone: points.length === 1 };
+    const max = Math.max(peak, 4);
+    return { path: linePath(points, start, now, box.width, box.height, max), peak, lone: points.length === 1, points, max, start, now };
   }
+  /** Noise and signal on a line, with short names on a narrow card, and the bar between them. */
   meter(sensors) {
     const signal = valueOf(this.hass, sensors.signal);
     const noise = valueOf(this.hass, sensors.noise);
@@ -1699,14 +1926,16 @@ var AdsbReceiverCard = class extends i4 {
       return A;
     }
     const gap = places.signal === null ? null : { left: Math.min(places.noise, places.signal), width: Math.abs(places.signal - places.noise) };
+    const level = (key, entityId) => b2`<span class="long">${this.text(`meter.${key}`)}</span
+                ><span class="short">${this.text(`meter.${key}_short`)}</span> ${this.withUnit(entityId)}`;
+    const noiseText = `${this.text("meter.noise")} ${this.withUnit(sensors.noise)}`;
+    const signalText = signal === null ? this.text("meter.signal_unknown") : `${this.text("meter.signal")} ${this.withUnit(sensors.signal)}`;
     return b2`
             <div class="meter">
                 <div class="levels">
-                    <button @click=${() => this.moreInfo(sensors.noise)}>
-                        ${this.text("meter.noise")} ${this.withUnit(sensors.noise)}
-                    </button>
-                    <button @click=${() => this.moreInfo(sensors.signal)}>
-                        ${signal === null ? this.text("meter.signal_unknown") : `${this.text("meter.signal")} ${this.withUnit(sensors.signal)}`}
+                    <button title=${noiseText} @click=${() => this.moreInfo(sensors.noise)}>${level("noise", sensors.noise)}</button>
+                    <button title=${signalText} @click=${() => this.moreInfo(sensors.signal)}>
+                        ${signal === null ? this.text("meter.signal_unknown") : level("signal", sensors.signal)}
                     </button>
                 </div>
                 <div class="bar">
@@ -1730,8 +1959,8 @@ var AdsbReceiverCard = class extends i4 {
     return b2`
             <button class="feeder" @click=${() => this.moreInfo(feeder.entity)}>
                 <span class="dot ${feederState(entity)}"></span>
-                <span class="feeder-name">${name}</span>
-                <span class="feeder-value">${value}</span>
+                <span class="feeder-name" title=${name}>${name}</span>
+                <span class="feeder-value" title=${value}>${value}</span>
             </button>
         `;
   }
@@ -1800,14 +2029,47 @@ var AdsbReceiverCard = class extends i4 {
                     cursor: pointer;
                 }
 
+                /*
+                 * The full layout's parts step in half rows of a sections view, 32 px, so that with its 24 px of padding and
+                 * border the card is 32k − 8 px tall and fills whole or half rows exactly: the top, the figures and the curve
+                 * two steps each, the meter and the tabs one each, and in the pane each aircraft and each feeder a step, and the
+                 * column heads with the room under the last aircraft one more. The texts keep to one line, cut short with their
+                 * whole text as a tooltip.
+                 */
                 .full {
-                    padding: 14px 16px 12px;
+                    display: flex;
+                    flex-direction: column;
+                    padding: 11px 16px;
                 }
 
+                .full > * {
+                    flex: none;
+                }
+
+                .name,
+                .version,
+                .line,
+                .figure .label,
+                .tab .label,
+                .levels button,
+                .feeder-name,
+                .feeder-value,
+                .plane .id,
+                .plane .sub,
+                .plane-head span,
+                .pane .message {
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+
+                /* What the rows leave over goes under the top, as padding, which no neighbour's margin can swallow. */
                 .top {
                     display: flex;
                     align-items: center;
                     gap: 12px;
+                    height: 64px;
+                    padding-bottom: var(--spare, 0px);
                 }
 
                 .icon {
@@ -1827,10 +2089,29 @@ var AdsbReceiverCard = class extends i4 {
                     min-width: 0;
                 }
 
+                .first {
+                    display: flex;
+                    align-items: baseline;
+                    gap: 8px;
+                }
+
                 .name {
+                    min-width: 0;
                     font-size: 16px;
                     font-weight: var(--ha-font-weight-medium, 500);
-                    overflow-wrap: anywhere;
+                }
+
+                .version {
+                    flex: none;
+                    max-width: 50%;
+                    margin-left: auto;
+                    font-size: 12px;
+                    color: var(--secondary-text-color);
+                }
+
+                .line {
+                    font-size: 12px;
+                    color: var(--secondary-text-color);
                 }
 
                 .status {
@@ -1838,58 +2119,11 @@ var AdsbReceiverCard = class extends i4 {
                     color: var(--receiver-color);
                 }
 
-                .rates,
-                .version,
-                .label,
-                .caption,
-                .levels,
-                .feeder-value,
-                .line,
-                .unit {
-                    color: var(--secondary-text-color);
-                }
-
-                .rates {
-                    font-size: 12px;
-                }
-
-                .version {
-                    align-self: flex-start;
-                    font-size: 12px;
-                    white-space: nowrap;
-                }
-
-                .piece,
-                .levels button {
-                    white-space: nowrap;
-                }
-
-                /* On a narrow card the version goes under the rates, leaving the name and rates the width, and the figures shrink so a number keeps its unit. */
-                @container (max-width: 299px) {
-                    .top {
-                        flex-wrap: wrap;
-                        row-gap: 2px;
-                    }
-
-                    .version {
-                        order: 3;
-                        flex-basis: 100%;
-                        padding-left: 52px;
-                    }
-
-                    .value {
-                        font-size: 20px;
-                    }
-
-                    .unit {
-                        font-size: 12px;
-                    }
-                }
-
                 .figures {
                     display: grid;
                     grid-template-columns: repeat(3, minmax(0, 1fr));
-                    margin: 14px 0 4px;
+                    align-items: center;
+                    height: 64px;
                     text-align: center;
                 }
 
@@ -1897,6 +2131,7 @@ var AdsbReceiverCard = class extends i4 {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
+                    min-width: 0;
                     padding: 0 4px;
                     text-align: center;
                 }
@@ -1915,16 +2150,28 @@ var AdsbReceiverCard = class extends i4 {
                 .unit {
                     font-size: 13px;
                     font-weight: var(--ha-font-weight-normal, 400);
+                    color: var(--secondary-text-color);
                 }
 
-                .label {
+                .figure .label {
+                    max-width: 100%;
                     font-size: 12px;
+                    color: var(--secondary-text-color);
                 }
 
+                /* The curve and its caption, with room under the caption before the meter. */
                 .curve {
                     display: block;
+                    box-sizing: border-box;
                     width: 100%;
-                    margin-top: 10px;
+                    min-height: 64px;
+                    padding-top: 4px;
+                }
+
+                .plot {
+                    position: relative;
+                    display: block;
+                    height: 36px;
                 }
 
                 /* The present value sits on the right edge, and its dot would be cut in half there. */
@@ -1936,7 +2183,7 @@ var AdsbReceiverCard = class extends i4 {
                 .curve svg {
                     display: block;
                     width: 100%;
-                    height: 44px;
+                    height: 36px;
                 }
 
                 svg path {
@@ -1959,24 +2206,68 @@ var AdsbReceiverCard = class extends i4 {
                     vector-effect: non-scaling-stroke;
                 }
 
+                /* The point under the pointer, and its hour and value above the line. */
+                .plot .dot {
+                    position: absolute;
+                    width: 8px;
+                    height: 8px;
+                    margin: -4px 0 0 -4px;
+                    border-radius: 50%;
+                    background: var(--primary-color);
+                    box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
+                    pointer-events: none;
+                }
+
+                .tip {
+                    position: absolute;
+                    bottom: calc(100% + 4px);
+                    z-index: 2;
+                    transform: translateX(-50%);
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    background: var(--primary-text-color);
+                    color: var(--ha-card-background, var(--card-background-color, #fff));
+                    font-size: 12px;
+                    white-space: nowrap;
+                    pointer-events: none;
+                }
+
+                .tip.start {
+                    transform: none;
+                }
+
+                .tip.end {
+                    transform: translateX(-100%);
+                }
+
                 .caption {
                     display: flex;
                     justify-content: space-between;
                     gap: 8px;
                     font-size: 11px;
+                    color: var(--secondary-text-color);
                 }
 
+                /* A line of levels and the bar, with room under the bar before the tabs. */
                 .meter {
-                    margin-top: 12px;
+                    height: 32px;
                 }
 
                 .levels {
                     display: flex;
-                    flex-wrap: wrap;
                     justify-content: space-between;
-                    gap: 0 12px;
-                    margin-bottom: 4px;
+                    gap: 12px;
                     font-size: 12px;
+                    line-height: 18px;
+                    color: var(--secondary-text-color);
+                }
+
+                .levels button {
+                    min-width: 0;
+                }
+
+                .short {
+                    display: none;
                 }
 
                 .bar {
@@ -2012,101 +2303,92 @@ var AdsbReceiverCard = class extends i4 {
                     background: var(--primary-color);
                 }
 
+                /* The tabs reach the card's edges, with a line under them that the picked one's underline covers. */
+                .tabs {
+                    display: flex;
+                    height: 32px;
+                    margin: 0 -16px;
+                    padding: 0 16px;
+                    box-shadow: inset 0 -1px var(--divider-color);
+                }
+
+                .tab {
+                    flex: 1 1 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    min-width: 0;
+                    border-bottom: 2px solid transparent;
+                    font-size: 13px;
+                    color: var(--secondary-text-color);
+                }
+
+                .tab.on {
+                    border-bottom-color: var(--primary-color);
+                    color: var(--primary-text-color);
+                }
+
+                .tab .count {
+                    flex: none;
+                    color: var(--secondary-text-color);
+                }
+
+                .tab .problem {
+                    flex: none;
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: var(--error-color, #db4437);
+                }
+
+                /* On a narrow card the version goes, and the meter and the aircraft's tab take their short names. */
+                @container (max-width: 299px) {
+                    .version,
+                    .long {
+                        display: none;
+                    }
+
+                    .short {
+                        display: inline;
+                    }
+
+                    .value {
+                        font-size: 20px;
+                    }
+
+                    .unit {
+                        font-size: 12px;
+                    }
+                }
+
                 /*
-                 * Held to a height, by its height mode or a sections view's rows, the card is a column in which the top and
-                 * the figures stay and the rest scrolls together, the list of aircraft with it rather than on its own.
+                 * Held to a height, by its height mode or a sections view's rows, only the pane scrolls. It reaches out over
+                 * the card's padding at the sides and 4 px down, where the focus rings are drawn.
                  */
                 ha-card.held {
-                    display: flex;
-                    flex-direction: column;
                     overflow: hidden;
                 }
 
-                ha-card.held > * {
-                    flex: none;
-                }
-
-                /*
-                 * The scroller clips at its padding box, so it reaches out over the card's padding at the sides and 4 px up and
-                 * down, where the curve's present dot, the meter's marks at its ends and the focus rings are drawn.
-                 */
-                ha-card.held > .scroll {
-                    margin: -4px -16px;
-                    padding: 4px 16px;
+                ha-card.held > .pane {
                     flex: 1 1 auto;
                     min-height: 0;
+                    margin: 0 -16px -4px;
+                    padding: 0 16px 4px;
                     overflow-y: auto;
                     scrollbar-width: thin;
                 }
 
-                /* Clipped, not hidden, which would make the fold the scroller the list's column heads stick to. */
-                ha-card.held .fold-in {
-                    overflow: clip;
-                }
-
-                .aircraft {
-                    margin-top: 12px;
-                    border-top: 1px solid var(--divider-color);
-                }
-
-                .list-heading {
-                    display: flex;
-                    flex: none;
-                    align-items: center;
-                    gap: 8px;
-                    width: 100%;
-                    padding: 10px 0 8px;
-                    font-size: 14px;
-                }
-
-                .list-heading .count {
-                    color: var(--secondary-text-color);
-                }
-
-                .list-heading ha-icon {
-                    --mdc-icon-size: 20px;
-                    margin-left: auto;
-                    color: var(--secondary-text-color);
-                    transition: transform var(--ha-animation-duration-fast, 150ms);
-                }
-
-                .list-heading.open ha-icon {
-                    transform: rotate(180deg);
-                }
-
-                /* The list slides open and shut, on Home Assistant's timing, which is near none under the system's reduced motion. */
-                .fold {
-                    display: grid;
-                    grid-template-rows: 0fr;
-                    min-height: 0;
-                    transition: grid-template-rows var(--ha-animation-duration-normal, 250ms) ease;
-                }
-
-                .fold.open {
-                    grid-template-rows: 1fr;
-                }
-
-                .fold-in {
-                    min-height: 0;
-                    overflow: hidden;
-                }
-
-                @media (prefers-reduced-motion: reduce) {
-                    .fold,
-                    .list-heading ha-icon {
-                        transition: none;
-                    }
-                }
-
-                /* The list's last row has its own line under it, the feeders'. */
-                .aircraft + .feeders {
-                    margin-top: 0;
-                }
-
-                .aircraft .message {
-                    padding: 4px 0 8px;
+                .pane .message {
+                    padding: 4px 0;
                     font-size: 13px;
+                    line-height: 24px;
                     color: var(--secondary-text-color);
+                }
+
+                /* The column heads and the room under the last aircraft make one step together. */
+                .planes {
+                    padding-bottom: 8px;
                 }
 
                 .plane-head,
@@ -2117,18 +2399,15 @@ var AdsbReceiverCard = class extends i4 {
                     gap: 0 8px;
                 }
 
-                /*
-                 * Kept at the top of a held card's scroller, over the scroller's 4 px of top padding, with as much more padding
-                 * of its own, drawn above where it sits. Elsewhere the fold, which hides its overflow, holds it in place.
-                 */
+                /* Kept at the top of a held card's pane while the aircraft scroll under it. */
                 .plane-head {
                     position: sticky;
-                    top: -4px;
+                    top: 0;
                     z-index: 1;
                     background: var(--ha-card-background, var(--card-background-color, #fff));
-                    margin-top: -4px;
-                    padding: 6px 0 4px;
+                    padding: 4px 0;
                     font-size: 11px;
+                    line-height: 16px;
                     color: var(--secondary-text-color);
                 }
 
@@ -2136,18 +2415,30 @@ var AdsbReceiverCard = class extends i4 {
                     text-align: right;
                 }
 
+                /*
+                 * Dividers drawn inside the step they top, so they add nothing to its height. A pane without tabs over it
+                 * has the tabs' line on its first row, the column heads' kept while the aircraft scroll under them.
+                 */
+                .plane,
+                .feeder + .feeder,
+                .pane.alone .plane-head,
+                .pane.alone > .message,
+                .pane.alone > .feeder:first-child {
+                    box-shadow: inset 0 1px var(--divider-color);
+                }
+
+                /* Half a row each, its two lines cut short rather than wrapped, so two aircraft fill a row. */
                 .plane {
                     grid-template-areas: "id altitude signal" "sub altitude signal";
-                    padding: 5px 0;
-                    border-top: 1px solid var(--divider-color);
+                    padding-top: 2px;
                     font-size: 13px;
                 }
 
+                /* A fixed height, as the position icon would stretch the line box a pixel past the step. */
                 .plane .id {
                     grid-area: id;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
+                    height: 16px;
+                    line-height: 16px;
                 }
 
                 .plane .callsign {
@@ -2170,6 +2461,7 @@ var AdsbReceiverCard = class extends i4 {
                 .plane .sub {
                     grid-area: sub;
                     font-size: 11px;
+                    line-height: 14px;
                     color: var(--secondary-text-color);
                 }
 
@@ -2204,23 +2496,17 @@ var AdsbReceiverCard = class extends i4 {
                     color: var(--secondary-text-color);
                 }
 
-                .feeders {
-                    margin-top: 12px;
-                    padding-top: 6px;
-                    border-top: 1px solid var(--divider-color);
-                }
-
+                /* A feeder is a step, its name kept before its value is cut. */
                 .feeder {
                     display: flex;
-                    flex-wrap: wrap;
                     align-items: center;
-                    gap: 2px 10px;
+                    gap: 10px;
                     width: 100%;
-                    padding: 7px 0;
+                    height: 32px;
                     font-size: 13px;
                 }
 
-                .dot {
+                .feeder .dot {
                     flex: none;
                     width: 8px;
                     height: 8px;
@@ -2228,24 +2514,32 @@ var AdsbReceiverCard = class extends i4 {
                     background: var(--disabled-text-color, #9e9e9e);
                 }
 
-                .dot.ok {
+                .feeder .dot.ok {
                     background: var(--success-color, #43a047);
                 }
 
-                .dot.error {
+                .feeder .dot.error {
                     background: var(--error-color, #db4437);
                 }
 
                 .feeder-name {
-                    flex: 1 1 auto;
-                    min-width: 0;
-                    overflow-wrap: anywhere;
+                    flex: 0 0 auto;
+                    max-width: 55%;
                 }
 
                 .feeder-value {
+                    flex: 0 1 auto;
+                    min-width: 0;
                     margin-left: auto;
                     text-align: right;
-                    overflow-wrap: anywhere;
+                    color: var(--secondary-text-color);
+                }
+
+                /* One row of a sections view at full width, and centred in the rows it fills or is held to. */
+                ha-card.compact {
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
                 }
 
                 .compact .row {
@@ -2253,7 +2547,7 @@ var AdsbReceiverCard = class extends i4 {
                     align-items: center;
                     gap: 12px;
                     width: 100%;
-                    padding: 12px 14px;
+                    padding: 9px 14px;
                 }
 
                 .compact .icon {
@@ -2263,15 +2557,28 @@ var AdsbReceiverCard = class extends i4 {
 
                 .compact .name {
                     font-size: 14px;
+                    white-space: normal;
+                    overflow-wrap: anywhere;
                 }
 
                 .compact .status {
                     font-weight: var(--ha-font-weight-normal, 400);
                 }
 
-                .line {
-                    font-size: 12px;
+                .compact .line {
+                    line-height: 16px;
+                    white-space: normal;
                     overflow-wrap: anywhere;
+                }
+
+                .piece {
+                    white-space: nowrap;
+                }
+
+                /* Held, the compact layout's two lines keep to one line each, so it is one row at any width. */
+                ha-card.compact.held .name,
+                ha-card.compact.held .line {
+                    white-space: nowrap;
                 }
 
                 .small-curve {
@@ -2308,7 +2615,7 @@ __decorateClass([
 ], AdsbReceiverCard.prototype, "historyLoaded", 2);
 __decorateClass([
   r5()
-], AdsbReceiverCard.prototype, "listOpen", 2);
+], AdsbReceiverCard.prototype, "picked", 2);
 __decorateClass([
   r5()
 ], AdsbReceiverCard.prototype, "aircraft", 2);
@@ -2318,6 +2625,18 @@ __decorateClass([
 __decorateClass([
   r5()
 ], AdsbReceiverCard.prototype, "clock", 2);
+__decorateClass([
+  r5()
+], AdsbReceiverCard.prototype, "hover", 2);
+__decorateClass([
+  r5()
+], AdsbReceiverCard.prototype, "width", 2);
+__decorateClass([
+  r5()
+], AdsbReceiverCard.prototype, "filled", 2);
+__decorateClass([
+  r5()
+], AdsbReceiverCard.prototype, "spare", 2);
 if (!customElements.get("adsb-receiver-card")) {
   console.info(
     `%c  ADSB-RECEIVER-CARD 

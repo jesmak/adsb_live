@@ -7,6 +7,7 @@ import { PLATFORM, RECEIVER_MANUFACTURER } from "./const";
 import type { HomeAssistant } from "./hass";
 import { heightData, heightSchema, tidyHeight } from "./height";
 import { browserLanguage, translate } from "./localize/localize";
+import { rowStepData, rowStepSchema, tidyRowStep } from "./rows";
 import type { AdsbReceiverCardConfig, FeederConfig } from "./types";
 
 interface SchemaEntry {
@@ -33,9 +34,22 @@ function receiverSchema(config: AdsbReceiverCardConfig, text: (key: string) => s
                 },
             },
         },
-        { name: "list_open", selector: { boolean: {} } },
-        ...heightSchema(config, text),
+        // The compact layout has no height mode, and so always offers its row step.
+        ...(compact(config) ? [] : heightSchema(config, text)),
+        ...rowStepSchema(compact(config) ? withoutHeight(config) : config, text),
     ];
+}
+
+function compact(config: AdsbReceiverCardConfig): boolean {
+    return config.layout === "compact";
+}
+
+function withoutHeight(config: AdsbReceiverCardConfig): AdsbReceiverCardConfig {
+    const rest = { ...config };
+    delete rest.height_mode;
+    delete rest.height;
+    delete rest.max_height;
+    return rest;
 }
 
 /** The feeders. A field inside the object selector takes its helper from `description`, as ha-form's computeHelper doesn't reach it. */
@@ -95,7 +109,7 @@ export class AdsbReceiverCardEditor extends LitElement {
         if (!this.hass || !this.config) {
             return nothing;
         }
-        const data = { layout: "full", ...heightData(this.config) };
+        const data = { layout: "full", ...rowStepData(compact(this.config) ? withoutHeight(this.config) : heightData(this.config)) };
         // Two forms, so that the feeders' helper, which Home Assistant's list of objects doesn't show, sits above the list.
         return html`
             <ha-form
@@ -130,7 +144,9 @@ export class AdsbReceiverCardEditor extends LitElement {
     }
 
     private valueChanged(event: CustomEvent<{ value: AdsbReceiverCardConfig }>): void {
-        const config: AdsbReceiverCardConfig = tidyHeight(event.detail.value);
+        // A height left from the full layout does nothing in the compact one, and would hide and drop its row step.
+        const value = compact(event.detail.value) ? withoutHeight(event.detail.value) : event.detail.value;
+        const config: AdsbReceiverCardConfig = tidyRowStep(tidyHeight(value));
         const feeders = compactFeeders(config.feeders);
         if (feeders.length) {
             config.feeders = feeders;
@@ -140,12 +156,11 @@ export class AdsbReceiverCardEditor extends LitElement {
         if (!config.name) {
             delete config.name;
         }
+        // No option hides the list since the tabs came, so a list_open from before them means nothing.
+        delete (config as Record<string, unknown>).list_open;
         // The default is shown in the form but left out of the configuration.
         if (!config.layout || config.layout === "full") {
             delete config.layout;
-        }
-        if (!config.list_open) {
-            delete config.list_open;
         }
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
     }

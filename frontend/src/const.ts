@@ -23,7 +23,7 @@ export type SensorKey = (typeof SENSORS)[number];
 export const HISTORY_HOURS = 24;
 export const HISTORY_REFRESH_MS = 10 * 60_000;
 
-/** How often the open list of aircraft is read again. Its ages count up every second in between. */
+/** How often the shown list of aircraft is read again. Its ages count up every second in between. */
 export const AIRCRAFT_REFRESH_MS = 10_000;
 
 /** The longest range is readsb's over its last 15 minutes, as one minute is often too short for a distant aircraft. */

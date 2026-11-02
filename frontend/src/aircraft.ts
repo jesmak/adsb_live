@@ -1,6 +1,6 @@
 /**
  * The aircraft the receiver itself hears, from ADS-B Live's action get_receiver_aircraft, which reads readsb when asked.
- * The card asks only while its list is open, so nothing is read, and nothing written to the recorder, when nobody looks.
+ * The card asks only while its aircraft are shown, so nothing is read, and nothing written to the recorder, when nobody looks.
  */
 
 import { PLATFORM } from "./const";

@@ -32,7 +32,8 @@ import {
     peakOf,
     valueOf,
 } from "./receiver";
-import type { NumberFormat, Status } from "./receiver";
+import type { NumberFormat, Point, Status } from "./receiver";
+import { filledHeight, validRowStep } from "./rows";
 import type { AdsbReceiverCardConfig, FeederConfig } from "./types";
 
 interface CardRegistration {
@@ -45,8 +46,27 @@ interface CardRegistration {
 
 const HOUR = 3_600_000;
 /** The curves' boxes in SVG units. The full one stretches to the card's width. */
-const CURVE = { width: 360, height: 44 };
+const CURVE = { width: 360, height: 36 };
 const SMALL_CURVE = { width: 90, height: 32 };
+
+/** The tabs' height, which a card with only one pane has no tabs for. */
+const TABS_PX = 32;
+
+/**
+ * The least a held full card needs on a card this wide or wider: its padding and border, the fixed part (the top, the
+ * figures and the curve two half-row steps each, the meter and the tabs one each) and three steps of the pane, the column
+ * heads and two aircraft or three feeders, 376 px, six rows of a sections view. A card without feeders has no tabs, and
+ * three aircraft in the same six rows. Below 160 the curve's caption wraps, which only a card narrower than its 9
+ * columns allow (in a stack, or by a theme) is. Measured held from 140 px up both ways.
+ */
+const LEAST_PX: [number, number][] = [
+    [160, 376],
+    [0, 383],
+];
+
+const px = (value: string) => parseFloat(value) || 0;
+
+type Pane = "aircraft" | "feeders";
 
 export class AdsbReceiverCard extends LitElement {
     @property({ attribute: false }) public hass?: HomeAssistant;
@@ -58,22 +78,36 @@ export class AdsbReceiverCard extends LitElement {
     @state() private historyLoaded = false;
     private historyOf?: string;
     private timer?: ReturnType<typeof setInterval>;
-    @state() private listOpen = false;
+    /** The pane picked from its tab, until the page is loaded again. Until then the card picks, see `shownPane`. */
+    @state() private picked?: Pane;
     /** The receiver's aircraft from the last answer for `aircraftOf`, kept when a later reading fails. */
     @state() private aircraft?: ReceiverAircraft;
     /** Whether reading failed before any answer came. */
     @state() private aircraftFailed = false;
-    /** The time the rows' ages count from, moved on every second while the list is open on the card. */
+    /** The time the rows' ages count from, moved on every second while the aircraft are shown. */
     @state() private clock = Date.now();
     private aircraftOf?: string;
     private aircraftReadAt = 0;
     private aircraftReading = false;
     private listTimer?: ReturnType<typeof setInterval>;
+    /**
+     * The point of the curve under the pointer, with its text and where it is drawn, in per cent of the curve's box. It lives
+     * only while the pointer is on a curve that is on the page, so it goes on pointerleave, when the curve isn't drawn, and
+     * when the card leaves the page, as an element taken off the page gets no pointerleave.
+     */
+    @state() private hover?: { x: number; y: number; text: string };
+    /** The card's width when last measured, 0 before it is drawn. */
+    @state() private width = 0;
+    /** On automatic rows, the height that ends the card on its rows, and the room that leaves under its content. */
+    @state() private filled = 0;
+    @state() private spare = 0;
+    private frame?: number;
+    private readonly resizes = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(() => this.measureSoon());
 
     constructor() {
         super();
-        // Fades the scroller's edges while the card is held to a height, through the card's own lifecycle.
-        new ScrollFade(this, () => (this.heightStyle() ? this.renderRoot.querySelectorAll<HTMLElement>("ha-card > .scroll") : []));
+        // Fades the pane's edges while the card is held to a height, through the card's own lifecycle.
+        new ScrollFade(this, () => (this.heightStyle() ? this.renderRoot.querySelectorAll<HTMLElement>("ha-card > .pane") : []));
     }
 
     public static getConfigElement(): HTMLElement {
@@ -92,13 +126,10 @@ export class AdsbReceiverCard extends LitElement {
         if (!validHeight(config)) {
             throw new Error(translate(browserLanguage(), "common.invalid_height"));
         }
-        const previous = this.config;
-        // A list opened or shut by hand stays so, unless the configuration's own list_open changed. Only true opens it, so
-        // list_open: false is the same as none.
-        if (!previous || (previous.list_open === true) !== (config.list_open === true)) {
-            this.listOpen = config.list_open === true;
+        if (!validRowStep(config)) {
+            throw new Error(translate(browserLanguage(), "common.invalid_row_step"));
         }
-        if (previous && previous.device !== config.device) {
+        if (this.config && this.config.device !== config.device) {
             // Another receiver's aircraft are none of this one's, even while its own are on the way.
             this.aircraft = undefined;
             this.aircraftFailed = false;
@@ -106,26 +137,21 @@ export class AdsbReceiverCard extends LitElement {
             this.aircraftReadAt = 0;
         }
         this.config = { ...config, feeders: Array.isArray(config.feeders) ? config.feeders.filter((feeder) => !!feeder?.entity) : [] };
-        if (this.isConnected) {
-            if (this.listOpen) {
-                this.startList();
-            } else {
-                this.stopList();
-            }
-        }
     }
 
     public getCardSize(): number {
-        // One for the list's heading.
-        return this.compact() ? 1 : heightCardSize(this.config ?? {}, 6 + (this.config?.feeders?.length ?? 0), this.minimumHeight());
+        // The fixed part is about six, and the pane a row for each feeder or a few aircraft.
+        return this.compact()
+            ? 1
+            : heightCardSize(this.config ?? {}, 6 + Math.max(4, this.config?.feeders?.length ?? 0), this.minimumHeight());
     }
 
     /**
-     * In a sections view the card takes a whole section by default and is never narrower than half of one. The full
-     * layout is never lower than its minimum height, while the compact one is a row whose height its content sets.
+     * In a sections view the card takes a whole section by default. Below 9 columns, 140 px on a phone, its texts have too
+     * little room. Held, the compact layout is one row at any width.
      */
     public getGridOptions(): Record<string, unknown> {
-        return { columns: 12, min_columns: 6, rows: "auto", ...(this.compact() ? {} : { min_rows: gridMinRows(this.minimumHeight()) }) };
+        return { columns: 12, min_columns: 9, rows: "auto", min_rows: this.compact() ? 1 : gridMinRows(this.minimumHeight()) };
     }
 
     /** The curve is read when the card comes on the page and every few minutes while it stays there. */
@@ -133,15 +159,20 @@ export class AdsbReceiverCard extends LitElement {
         super.connectedCallback();
         this.timer = setInterval(() => void this.loadHistory(true), HISTORY_REFRESH_MS);
         void this.loadHistory(true);
-        if (this.listOpen) {
-            this.startList();
+        // Back on the page, the aircraft's ages are drawn as they are now, before the first tick.
+        if (this.shownPane() === "aircraft") {
+            this.clock = Date.now();
         }
+        this.followPane();
     }
 
     public disconnectedCallback(): void {
         super.disconnectedCallback();
         clearInterval(this.timer);
         this.stopList();
+        this.resizes?.disconnect();
+        cancelAnimationFrame(this.frame ?? 0);
+        this.hover = undefined;
     }
 
     protected shouldUpdate(changed: PropertyValues): boolean {
@@ -163,40 +194,122 @@ export class AdsbReceiverCard extends LitElement {
         return this.watched().some((id) => previous.states[id] !== this.hass?.states[id]);
     }
 
-    /** A redraw while the list is on the card shows its ages as they are now, also the first one after it comes back. */
+    /** A redraw while the aircraft are shown shows their ages as they are now, also the first one after they come back. */
     protected willUpdate(): void {
-        if (this.listOpen && this.listShown()) {
+        if (this.shownPane() === "aircraft") {
             this.clock = Date.now();
         }
+        // A curve taken off the card gets no pointerleave, so its tooltip goes with it rather than come back with the curve.
+        if (this.hover && !this.curveShown()) {
+            this.hover = undefined;
+        }
+    }
+
+    /** Whether the full layout draws its curve: a receiver that isn't unavailable, with its aircraft tracked sensor. */
+    private curveShown(): boolean {
+        const hass = this.hass;
+        if (!hass || !this.config || this.compact() || !hass.devices?.[this.config.device]) {
+            return false;
+        }
+        const sensors = receiverSensors(hass, this.config.device);
+        return !!sensors.aircraft_tracked && receiverStatus(hass, sensors) !== "unavailable";
     }
 
     protected updated(): void {
         // The first hass, or a receiver picked in the editor, has a curve to read.
         void this.loadHistory(false);
+        this.followPane();
         this.placeTopFade();
+        if (!this.isConnected) {
+            return;
+        }
+        const card = this.renderRoot.querySelector("ha-card");
+        if (card) {
+            this.resizes?.observe(card);
+        }
+        this.measureSoon();
+    }
+
+    private measureSoon(): void {
+        cancelAnimationFrame(this.frame ?? 0);
+        this.frame = requestAnimationFrame(() => this.fillRows());
     }
 
     /**
-     * Has a held card's top fade start under the list's column heads while they are stuck at the top of the scroller,
-     * rather than fade them. Stuck, the heads' top is at the scroller's, or above it once the list's end pushes them up.
-     * They cover only as far as the fold shows them: nothing while it is shut, and less as it slides shut, as the heads
-     * stay in it then. It runs again when the fold's slide ends, as a fold shut from the editor redraws while still open.
+     * In a sections view whose rows are left automatic, the card takes the whole rows its content needs, or the half rows
+     * with `row_step: half`, so the cards under it stay on the rows. The room left over goes under the top, in the compact
+     * layout around its row. Held to a height, the room the pane doesn't need stays at its bottom, so the fixed part
+     * doesn't move when the other tab is picked.
      */
-    private placeTopFade = (): void => {
-        const scroll = this.renderRoot.querySelector<HTMLElement>("ha-card > .scroll");
-        if (!scroll) {
+    private fillRows(): void {
+        const card = this.renderRoot.querySelector<HTMLElement>("ha-card");
+        if (!card || !card.clientWidth) {
             return;
         }
-        const held = scroll.closest("ha-card.held");
-        const head = held ? scroll.querySelector<HTMLElement>(".plane-head")?.getBoundingClientRect() : undefined;
-        const fold = head ? scroll.querySelector<HTMLElement>(".fold-in")?.getBoundingClientRect() : undefined;
-        const top = scroll.getBoundingClientRect().top;
-        const covered =
-            head && fold && fold.bottom > fold.top && head.top <= top + 0.5 ? Math.max(0, Math.min(head.bottom, fold.bottom) - top) : 0;
+        // The card's whole width, border included, as the widths the columns give are.
+        const width = Math.round(card.getBoundingClientRect().width);
+        if (width !== this.width) {
+            this.width = width;
+        }
+        if (this.layout !== "grid" || this.held() || card.classList.contains("message")) {
+            if (this.filled) this.filled = 0;
+            if (this.spare) this.spare = 0;
+            return;
+        }
+        // From the card's top to the end of its own last part, never its own height, which is the min-height set here, and
+        // never an element a theme adds to it.
+        const parts = card.querySelectorAll<HTMLElement>(
+            ":scope > .top, :scope > .figures, :scope > .curve, :scope > .meter, :scope > .tabs, :scope > .pane, :scope > .row",
+        );
+        const last = parts[parts.length - 1];
+        if (!last) {
+            return;
+        }
+        const style = getComputedStyle(card);
+        let content =
+            last.getBoundingClientRect().bottom +
+            px(getComputedStyle(last).marginBottom) -
+            card.getBoundingClientRect().top +
+            px(style.paddingBottom) +
+            px(style.borderBottomWidth);
+        // The spare room as drawn now.
+        const top = card.querySelector<HTMLElement>(":scope > .top");
+        content -= top ? px(getComputedStyle(top).paddingBottom) : 0;
+        const filled = filledHeight(Math.round(content), this.config ?? {});
+        const spare = Math.max(0, Math.floor(filled - content));
+        if (filled !== this.filled) {
+            this.filled = filled;
+        }
+        if (spare !== this.spare) {
+            this.spare = spare;
+        }
+    }
+
+    /** The card's inline style: the height it is held to, or the rows it fills, with their spare room under the top. */
+    private cardStyle(): string {
+        const held = this.heightStyle();
+        if (held || !this.filled) {
+            return held;
+        }
+        return `min-height: ${this.filled}px; --spare: ${this.spare}px`;
+    }
+
+    /**
+     * Has a held card's top fade start under the list's column heads while they are stuck at the top of the pane, rather
+     * than fade them. Stuck, the heads' top is at the pane's, or above it once the list's end pushes them up.
+     */
+    private placeTopFade = (): void => {
+        const pane = this.renderRoot.querySelector<HTMLElement>("ha-card > .pane");
+        if (!pane) {
+            return;
+        }
+        const head = pane.closest("ha-card.held") ? pane.querySelector<HTMLElement>(".plane-head")?.getBoundingClientRect() : undefined;
+        const top = pane.getBoundingClientRect().top;
+        const covered = head && head.top <= top + 0.5 ? Math.max(0, head.bottom - top) : 0;
         if (covered > 0) {
-            scroll.style.setProperty("--fade-top-offset", `${covered}px`);
+            pane.style.setProperty("--fade-top-offset", `${covered}px`);
         } else {
-            scroll.style.removeProperty("--fade-top-offset");
+            pane.style.removeProperty("--fade-top-offset");
         }
     };
 
@@ -246,21 +359,32 @@ export class AdsbReceiverCard extends LitElement {
         return this.compact() ? this.compactCard(sensors, status) : this.fullCard(sensors, status);
     }
 
+    /**
+     * The full layout: a fixed part with the receiver, its figures, the curve and the meter, and under it a pane with the
+     * aircraft heard or the other feeders, under tabs when it has both (see `shownPane`). Held to a height, only the pane
+     * scrolls.
+     */
     private fullCard(sensors: Partial<Record<SensorKey, string>>, status: Status): TemplateResult {
         const device = this.hass?.devices?.[this.config?.device ?? ""];
         const version = device?.sw_version ? [device.manufacturer, device.sw_version].filter(Boolean).join(" ") : "";
         const available = status !== "unavailable";
-        const height = this.heightStyle();
+        const name = receiverName(this.hass!, this.config!);
+        const statusText = this.text(`status.${status}`);
+        const line = available ? [statusText, ...this.rates(sensors)] : [statusText];
+        const pane = this.shownPane();
         return html`
-            <ha-card class="full ${status} ${height ? "held" : ""}" style=${height}>
+            <ha-card class="full ${status} ${this.held() ? "held" : ""}" style=${this.cardStyle()}>
                 <div class="top">
                     ${this.icon()}
                     <div class="who">
-                        <div class="name">${receiverName(this.hass!, this.config!)}</div>
-                        <div class="status">${this.text(`status.${status}`)}</div>
-                        ${available ? html`<div class="rates">${this.pieces(this.rates(sensors))}</div>` : nothing}
+                        <div class="first">
+                            <span class="name" title=${name}>${name}</span>
+                            ${version ? html`<span class="version" title=${version}>${version}</span>` : nothing}
+                        </div>
+                        <div class="line" title=${line.join(" · ")}>
+                            <span class="status">${statusText}</span>${line.slice(1).map((part) => html` · ${part}`)}
+                        </div>
                     </div>
-                    ${version ? html`<div class="version">${version}</div>` : nothing}
                 </div>
                 ${
                     available
@@ -270,17 +394,18 @@ export class AdsbReceiverCard extends LitElement {
                                   ${this.figure(sensors.aircraft_with_position, "figures.with_position")}
                                   ${this.figure(sensors.max_range, "figures.range", true, { minutes: formatNumber(RANGE_MINUTES, this.numberFormat(), 0) })}
                               </div>
+                              ${this.curve(sensors)} ${this.meter(sensors)}
                           `
                         : nothing
                 }
-                <div class="scroll" @scroll=${this.placeTopFade}>
-                    ${available ? html`${this.curve(sensors)} ${this.meter(sensors)} ${this.aircraftList()}` : nothing}
-                    ${
-                        this.config?.feeders?.length
-                            ? html`<div class="feeders">${this.config.feeders.map((feeder) => this.feeder(feeder))}</div>`
-                            : nothing
-                    }
-                </div>
+                ${
+                    pane
+                        ? html`${this.panes().length > 1 ? this.tabs(sensors) : nothing}
+                              <div class="pane ${this.panes().length > 1 ? "" : "alone"}" @scroll=${this.placeTopFade}>
+                                  ${pane === "aircraft" ? this.planes() : this.feeders()}
+                              </div>`
+                        : nothing
+                }
             </ha-card>
         `;
     }
@@ -292,15 +417,15 @@ export class AdsbReceiverCard extends LitElement {
             `${this.number(sensors.aircraft_with_position)} ${this.text("figures.with_position")}`,
             this.rates(sensors)[0],
         ];
+        const name = receiverName(this.hass!, this.config!);
+        const statusText = this.text(`status.${status}`);
         return html`
-            <ha-card class="compact ${status}">
+            <ha-card class="compact ${status} ${this.held() ? "held" : ""}" style=${this.cardStyle()}>
                 <button class="row" @click=${() => this.moreInfo(sensors.aircraft_tracked ?? sensors.positions_per_minute)}>
                     ${this.icon()}
                     <div class="who">
-                        <div class="name">
-                            ${receiverName(this.hass!, this.config!)} <span class="status">${this.text(`status.${status}`)}</span>
-                        </div>
-                        ${available ? html`<div class="line">${this.pieces(line)}</div>` : nothing}
+                        <div class="name" title="${name} ${statusText}">${name} <span class="status">${statusText}</span></div>
+                        ${available ? html`<div class="line" title=${line.join(", ")}>${this.pieces(line)}</div>` : nothing}
                     </div>
                     ${available ? this.smallCurve(sensors) : nothing}
                 </button>
@@ -308,36 +433,89 @@ export class AdsbReceiverCard extends LitElement {
         `;
     }
 
-    /** The aircraft the receiver hears, folded under its heading. It is read only while it is open. */
-    private aircraftList(): TemplateResult | typeof nothing {
-        if (!this.listShown()) {
-            return nothing;
+    /** The panes the card has: the aircraft with ADS-B Live's action while the receiver is available, the feeders when set. */
+    private panes(): Pane[] {
+        return [...(this.listShown() ? (["aircraft"] as Pane[]) : []), ...(this.config?.feeders?.length ? (["feeders"] as Pane[]) : [])];
+    }
+
+    /**
+     * The pane shown: the one picked from its tab, or else the feeders while one of them has a problem, and the aircraft
+     * otherwise.
+     */
+    private shownPane(): Pane | undefined {
+        const panes = this.panes();
+        if (this.picked && panes.includes(this.picked)) {
+            return this.picked;
         }
-        const count = this.listOpen && this.aircraft ? this.aircraft.aircraft.length : undefined;
+        return panes.includes("feeders") && this.feederProblem() ? "feeders" : panes[0];
+    }
+
+    /** Whether a feeder is down, unavailable or missing. A state that says neither up nor down is no problem. */
+    private feederProblem(): boolean {
+        return (this.config?.feeders ?? []).some((feeder) => {
+            const entity = this.hass?.states[feeder.entity];
+            return !entity || entity.state === "unavailable" || feederState(entity) === "error";
+        });
+    }
+
+    private tabs(sensors: Partial<Record<SensorKey, string>>): TemplateResult {
+        const shown = this.shownPane();
+        const tab = (pane: Pane, label: TemplateResult, count: string, problem = false) => html`
+            <button
+                class="tab ${shown === pane ? "on" : ""}"
+                role="tab"
+                aria-selected=${shown === pane ? "true" : "false"}
+                @click=${() => (this.picked = pane)}
+            >
+                ${label}<span class="count">${count}</span>${
+                    problem
+                        ? html`<span
+                              class="problem"
+                              role="img"
+                              aria-label=${this.text("feeders.problem")}
+                              title=${this.text("feeders.problem")}
+                          ></span>`
+                        : nothing
+                }
+            </button>
+        `;
+        const title = this.text("list.title");
         return html`
-            <div class="aircraft">
-                <button
-                    class="list-heading ${this.listOpen ? "open" : ""}"
-                    aria-expanded=${this.listOpen ? "true" : "false"}
-                    @click=${this.toggleList}
-                >
-                    <span class="list-title">${this.text("list.title")}</span>
-                    ${count === undefined ? nothing : html`<span class="count">${formatNumber(count, this.numberFormat(), 0)}</span>`}
-                    <ha-icon icon="mdi:chevron-down"></ha-icon>
-                </button>
-                <div
-                    class="fold ${this.listOpen ? "open" : ""}"
-                    ?inert=${!this.listOpen}
-                    @transitionend=${this.placeTopFade}
-                    @transitioncancel=${this.placeTopFade}
-                >
-                    <div class="fold-in">${this.planes()}</div>
-                </div>
+            <div class="tabs" role="tablist">
+                ${this.panes().map((pane) =>
+                    pane === "aircraft"
+                        ? tab(
+                              pane,
+                              html`<span class="label long" title=${title}>${title}</span
+                                  ><span class="label short" title=${title}>${this.text("list.title_short")}</span>`,
+                              this.aircraftCount(sensors),
+                          )
+                        : tab(
+                              pane,
+                              html`<span class="label" title=${this.text("feeders.title")}>${this.text("feeders.title")}</span>`,
+                              formatNumber(this.config?.feeders?.length ?? 0, this.numberFormat(), 0),
+                              this.feederProblem(),
+                          ),
+                )}
             </div>
         `;
     }
 
-    /** Whether the list is on the card: the full layout of a receiver that isn't unavailable, with ADS-B Live's action. */
+    /**
+     * The aircraft's count: the rows of the list while it is shown and read, so the tab never disagrees with the rows under
+     * it, and the aircraft tracked otherwise, as the list isn't read then.
+     */
+    private aircraftCount(sensors: Partial<Record<SensorKey, string>>): string {
+        return this.shownPane() === "aircraft" && this.aircraft
+            ? formatNumber(this.aircraft.aircraft.length, this.numberFormat(), 0)
+            : this.number(sensors.aircraft_tracked);
+    }
+
+    private feeders(): TemplateResult {
+        return html`${(this.config?.feeders ?? []).map((feeder) => this.feeder(feeder))}`;
+    }
+
+    /** Whether the aircraft can be on the card: the full layout of a receiver that isn't unavailable, with ADS-B Live's action. */
     private listShown(): boolean {
         const hass = this.hass;
         if (!hass || !this.config || this.compact() || !hasReceiverAircraft(hass) || !hass.devices?.[this.config.device]) {
@@ -349,18 +527,18 @@ export class AdsbReceiverCard extends LitElement {
 
     private planes(): TemplateResult | typeof nothing {
         if (!this.aircraft) {
-            return this.aircraftFailed ? html`<div class="message">${this.text("list.failed")}</div>` : nothing;
+            return this.aircraftFailed
+                ? html`<div class="message" title=${this.text("list.failed")}>${this.text("list.failed")}</div>`
+                : nothing;
         }
         if (!this.aircraft.aircraft.length) {
-            return html`<div class="message">${this.text("list.empty")}</div>`;
+            return html`<div class="message" title=${this.text("list.empty")}>${this.text("list.empty")}</div>`;
         }
         const unit = this.aircraft.altitude_unit;
         return html`
             <div class="planes">
                 <div class="plane-head">
-                    <span>${this.text("list.name_type")}</span>
-                    <span>${this.text("list.altitude")}</span>
-                    <span>${this.text("list.signal")}</span>
+                    ${["list.name_type", "list.altitude", "list.signal"].map((key) => html`<span title=${this.text(key)}>${this.text(key)}</span>`)}
                 </div>
                 ${byHeard(this.aircraft.aircraft).map((plane) => this.plane(plane, unit))}
             </div>
@@ -382,7 +560,7 @@ export class AdsbReceiverCard extends LitElement {
         ].filter(Boolean);
         return html`
             <div class="plane ${plane.position ? "" : "nopos"}">
-                <span class="id"
+                <span class="id" title=${[plane.name, plane.type].filter(Boolean).join(" ")}
                     ><span class="callsign">${plane.name}</span
                     >${plane.type ? html` <span class="type">${plane.type}</span>` : nothing}<ha-icon
                         class="position"
@@ -392,7 +570,7 @@ export class AdsbReceiverCard extends LitElement {
                         title=${position}
                     ></ha-icon
                 ></span>
-                <span class="sub">${sub.join(" · ")}</span>
+                <span class="sub" title=${sub.join(" · ")}>${sub.join(" · ")}</span>
                 <span class="altitude">${altitude}</span>
                 <span class="signal"
                     >${plane.rssi === undefined ? nothing : html`<i style="width: ${Number(meterPlace(plane.rssi).toFixed(1))}%"></i>`}</span
@@ -401,10 +579,12 @@ export class AdsbReceiverCard extends LitElement {
         `;
     }
 
-    private toggleList(): void {
-        this.listOpen = !this.listOpen;
-        if (this.listOpen && this.isConnected) {
-            this.startList();
+    /** Reads the aircraft while they are shown on a card on the page, and stops when they aren't. */
+    private followPane(): void {
+        if (this.isConnected && this.shownPane() === "aircraft") {
+            if (!this.listTimer) {
+                this.startList();
+            }
         } else {
             this.stopList();
         }
@@ -413,13 +593,8 @@ export class AdsbReceiverCard extends LitElement {
     /** Reads the list now and every AIRCRAFT_REFRESH_MS, and moves its ages on every second. */
     private startList(): void {
         this.stopList();
-        this.clock = Date.now();
         void this.loadAircraft();
         this.listTimer = setInterval(() => {
-            // Open but not on the card, as for an unavailable receiver, nothing is read or drawn until it comes back.
-            if (!this.listShown()) {
-                return;
-            }
             this.clock = Date.now();
             if (this.clock - this.aircraftReadAt >= AIRCRAFT_REFRESH_MS) {
                 void this.loadAircraft();
@@ -463,24 +638,29 @@ export class AdsbReceiverCard extends LitElement {
         }
     }
 
-    /** The compact layout is a row whose height its content sets, so only the full one is held to a height. */
+    /** The compact layout is held only by a sections view's rows, which it fills with its one row at any width. */
     private heightStyle(): string {
-        return this.compact() ? "" : heightStyle(this.config ?? {}, this.layout, this.minimumHeight());
+        const config: Partial<AdsbReceiverCardConfig> = this.config ?? {};
+        return this.compact()
+            ? heightStyle({ grid_options: config.grid_options, layout_options: config.layout_options }, this.layout)
+            : heightStyle(config, this.layout, this.minimumHeight());
+    }
+
+    private held(): boolean {
+        return this.heightStyle() !== "";
     }
 
     /**
-     * The lowest the full layout is held to, in pixels: its padding, the top with the name, status and rates, the
-     * figures and the curve with its caption, each with the space above it, as measured on a full section's width.
+     * The lowest the full layout is held to, in pixels, at any width the card's 9 columns or more allow, or at its measured
+     * width if narrower. The texts above the scroller keep to one line then.
      */
     private minimumHeight(): number {
         if (this.compact()) {
             return 0;
         }
-        const padding = 30;
-        const top = 57;
-        const figures = 14 + 46;
-        const curve = 14 + 59;
-        return padding + top + figures + curve;
+        const width = this.width || Infinity;
+        // Without feeders the aircraft are the only pane, under no tabs.
+        return LEAST_PX.find(([least]) => width >= least)![1] - (this.config?.feeders?.length ? 0 : TABS_PX);
     }
 
     /** Parts of a sentence, each kept whole, so a number never wraps away from its unit. */
@@ -503,10 +683,11 @@ export class AdsbReceiverCard extends LitElement {
 
     private figure(entityId: string | undefined, label: string, withUnit = false, values: Record<string, string> = {}): TemplateResult {
         const unit = withUnit && entityId ? this.hass?.states[entityId]?.attributes.unit_of_measurement : undefined;
+        const text = this.text(label, values);
         return html`
             <button class="figure" @click=${() => this.moreInfo(entityId)}>
                 <span class="value">${this.number(entityId)}${unit ? html` <span class="unit">${unit}</span>` : nothing}</span>
-                <span class="label">${this.text(label, values)}</span>
+                <span class="label" title=${text}>${text}</span>
             </button>
         `;
     }
@@ -515,13 +696,29 @@ export class AdsbReceiverCard extends LitElement {
         if (!sensors.aircraft_tracked) {
             return nothing;
         }
-        const { path, peak, lone } = this.curvePath(sensors.aircraft_tracked, CURVE);
+        const { path, peak, lone, points, max, start, now } = this.curvePath(sensors.aircraft_tracked, CURVE);
+        const hover = this.hover;
         return html`
-            <button class="curve" @click=${() => this.moreInfo(sensors.aircraft_tracked)}>
-                <svg viewBox="0 0 ${CURVE.width} ${CURVE.height}" preserveAspectRatio="none" aria-hidden="true">
-                    <line class="base" x1="0" x2=${CURVE.width} y1=${CURVE.height - 1} y2=${CURVE.height - 1}></line>
-                    <path class=${lone ? "lone" : ""} d=${path}></path>
-                </svg>
+            <button
+                class="curve"
+                @click=${() => this.moreInfo(sensors.aircraft_tracked)}
+                @pointermove=${(event: PointerEvent) => this.pointAt(event, points, start, now, max)}
+                @pointerleave=${() => (this.hover = undefined)}
+            >
+                <span class="plot">
+                    <svg viewBox="0 0 ${CURVE.width} ${CURVE.height}" preserveAspectRatio="none" aria-hidden="true">
+                        <line class="base" x1="0" x2=${CURVE.width} y1=${CURVE.height - 1} y2=${CURVE.height - 1}></line>
+                        <path class=${lone ? "lone" : ""} d=${path}></path>
+                    </svg>
+                    ${
+                        hover
+                            ? html`<span class="dot" style="left: ${hover.x}%; top: ${hover.y}%"></span
+                                  ><span class="tip ${hover.x < 25 ? "start" : hover.x > 75 ? "end" : ""}" style="left: ${hover.x}%"
+                                      >${hover.text}</span
+                                  >`
+                            : nothing
+                    }
+                </span>
                 <span class="caption">
                     <span>${this.text("curve.past", { hours: formatNumber(HISTORY_HOURS, this.numberFormat(), 0) })}</span>
                     <span>${peak > 0 ? this.text("curve.peak", { value: formatNumber(peak, this.numberFormat(), 0) }) : ""}</span>
@@ -529,6 +726,31 @@ export class AdsbReceiverCard extends LitElement {
                 </span>
             </button>
         `;
+    }
+
+    /** The curve's point nearest the pointer, as a dot on the line and a tooltip with its hour and value. */
+    private pointAt(event: PointerEvent, points: Point[], start: number, now: number, max: number): void {
+        const plot = (event.currentTarget as HTMLElement).querySelector(".plot")?.getBoundingClientRect();
+        if (!plot || !plot.width || !points.length || now <= start) {
+            return;
+        }
+        const time = start + Math.min(Math.max((event.clientX - plot.left) / plot.width, 0), 1) * (now - start);
+        const point = points.reduce((best, one) => (Math.abs(one.time - time) < Math.abs(best.time - time) ? one : best));
+        const format = this.numberFormat();
+        const value = formatNumber(point.value, format, Number.isInteger(point.value) ? 0 : 1);
+        // An hour's point is its mean, drawn at the middle of the hour and named by its start. The last point is the present value.
+        const text =
+            point.time >= now
+                ? this.text("curve.point_now", { value })
+                : this.text("curve.point", {
+                      time: new Intl.DateTimeFormat(this.language(), { hour: "numeric", minute: "2-digit" }).format(point.time - HOUR / 2),
+                      value,
+                  });
+        const x = Number((((point.time - start) / (now - start)) * 100).toFixed(1));
+        const y = Number(((1 - Math.min(Math.max(point.value, 0), max) / max) * 100).toFixed(1));
+        if (this.hover?.x !== x || this.hover.text !== text) {
+            this.hover = { x, y, text };
+        }
     }
 
     private smallCurve(sensors: Partial<Record<SensorKey, string>>): TemplateResult | typeof nothing {
@@ -543,20 +765,25 @@ export class AdsbReceiverCard extends LitElement {
         `;
     }
 
-    private curvePath(entityId: string, box: { width: number; height: number }): { path: string; peak: number; lone: boolean } {
+    private curvePath(
+        entityId: string,
+        box: { width: number; height: number },
+    ): { path: string; peak: number; lone: boolean; points: Point[]; max: number; start: number; now: number } {
         const now = Date.now();
         const start = now - HISTORY_HOURS * HOUR;
         const current = valueOf(this.hass!, entityId);
         // Until the recorder answers, the present value alone would look like a receiver without an hour of statistics.
         if (!this.historyLoaded) {
-            return { path: "", peak: 0, lone: false };
+            return { path: "", peak: 0, lone: false, points: [], max: 4, start, now };
         }
         const points = curvePoints(this.history, start, now, current);
         const peak = peakOf(this.history, start, current);
         // A sky of one aircraft at most shouldn't look as full as a busy one, so the top is never below 4.
-        return { path: linePath(points, start, now, box.width, box.height, Math.max(peak, 4)), peak, lone: points.length === 1 };
+        const max = Math.max(peak, 4);
+        return { path: linePath(points, start, now, box.width, box.height, max), peak, lone: points.length === 1, points, max, start, now };
     }
 
+    /** Noise and signal on a line, with short names on a narrow card, and the bar between them. */
     private meter(sensors: Partial<Record<SensorKey, string>>): TemplateResult | typeof nothing {
         const signal = valueOf(this.hass!, sensors.signal);
         const noise = valueOf(this.hass!, sensors.noise);
@@ -566,14 +793,18 @@ export class AdsbReceiverCard extends LitElement {
         }
         const gap =
             places.signal === null ? null : { left: Math.min(places.noise, places.signal), width: Math.abs(places.signal - places.noise) };
+        const level = (key: string, entityId: string | undefined) =>
+            html`<span class="long">${this.text(`meter.${key}`)}</span
+                ><span class="short">${this.text(`meter.${key}_short`)}</span> ${this.withUnit(entityId)}`;
+        const noiseText = `${this.text("meter.noise")} ${this.withUnit(sensors.noise)}`;
+        const signalText =
+            signal === null ? this.text("meter.signal_unknown") : `${this.text("meter.signal")} ${this.withUnit(sensors.signal)}`;
         return html`
             <div class="meter">
                 <div class="levels">
-                    <button @click=${() => this.moreInfo(sensors.noise)}>
-                        ${this.text("meter.noise")} ${this.withUnit(sensors.noise)}
-                    </button>
-                    <button @click=${() => this.moreInfo(sensors.signal)}>
-                        ${signal === null ? this.text("meter.signal_unknown") : `${this.text("meter.signal")} ${this.withUnit(sensors.signal)}`}
+                    <button title=${noiseText} @click=${() => this.moreInfo(sensors.noise)}>${level("noise", sensors.noise)}</button>
+                    <button title=${signalText} @click=${() => this.moreInfo(sensors.signal)}>
+                        ${signal === null ? this.text("meter.signal_unknown") : level("signal", sensors.signal)}
                     </button>
                 </div>
                 <div class="bar">
@@ -598,8 +829,8 @@ export class AdsbReceiverCard extends LitElement {
         return html`
             <button class="feeder" @click=${() => this.moreInfo(feeder.entity)}>
                 <span class="dot ${feederState(entity)}"></span>
-                <span class="feeder-name">${name}</span>
-                <span class="feeder-value">${value}</span>
+                <span class="feeder-name" title=${name}>${name}</span>
+                <span class="feeder-value" title=${value}>${value}</span>
             </button>
         `;
     }
@@ -679,14 +910,47 @@ export class AdsbReceiverCard extends LitElement {
                     cursor: pointer;
                 }
 
+                /*
+                 * The full layout's parts step in half rows of a sections view, 32 px, so that with its 24 px of padding and
+                 * border the card is 32k − 8 px tall and fills whole or half rows exactly: the top, the figures and the curve
+                 * two steps each, the meter and the tabs one each, and in the pane each aircraft and each feeder a step, and the
+                 * column heads with the room under the last aircraft one more. The texts keep to one line, cut short with their
+                 * whole text as a tooltip.
+                 */
                 .full {
-                    padding: 14px 16px 12px;
+                    display: flex;
+                    flex-direction: column;
+                    padding: 11px 16px;
                 }
 
+                .full > * {
+                    flex: none;
+                }
+
+                .name,
+                .version,
+                .line,
+                .figure .label,
+                .tab .label,
+                .levels button,
+                .feeder-name,
+                .feeder-value,
+                .plane .id,
+                .plane .sub,
+                .plane-head span,
+                .pane .message {
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+
+                /* What the rows leave over goes under the top, as padding, which no neighbour's margin can swallow. */
                 .top {
                     display: flex;
                     align-items: center;
                     gap: 12px;
+                    height: 64px;
+                    padding-bottom: var(--spare, 0px);
                 }
 
                 .icon {
@@ -706,10 +970,29 @@ export class AdsbReceiverCard extends LitElement {
                     min-width: 0;
                 }
 
+                .first {
+                    display: flex;
+                    align-items: baseline;
+                    gap: 8px;
+                }
+
                 .name {
+                    min-width: 0;
                     font-size: 16px;
                     font-weight: var(--ha-font-weight-medium, 500);
-                    overflow-wrap: anywhere;
+                }
+
+                .version {
+                    flex: none;
+                    max-width: 50%;
+                    margin-left: auto;
+                    font-size: 12px;
+                    color: var(--secondary-text-color);
+                }
+
+                .line {
+                    font-size: 12px;
+                    color: var(--secondary-text-color);
                 }
 
                 .status {
@@ -717,58 +1000,11 @@ export class AdsbReceiverCard extends LitElement {
                     color: var(--receiver-color);
                 }
 
-                .rates,
-                .version,
-                .label,
-                .caption,
-                .levels,
-                .feeder-value,
-                .line,
-                .unit {
-                    color: var(--secondary-text-color);
-                }
-
-                .rates {
-                    font-size: 12px;
-                }
-
-                .version {
-                    align-self: flex-start;
-                    font-size: 12px;
-                    white-space: nowrap;
-                }
-
-                .piece,
-                .levels button {
-                    white-space: nowrap;
-                }
-
-                /* On a narrow card the version goes under the rates, leaving the name and rates the width, and the figures shrink so a number keeps its unit. */
-                @container (max-width: 299px) {
-                    .top {
-                        flex-wrap: wrap;
-                        row-gap: 2px;
-                    }
-
-                    .version {
-                        order: 3;
-                        flex-basis: 100%;
-                        padding-left: 52px;
-                    }
-
-                    .value {
-                        font-size: 20px;
-                    }
-
-                    .unit {
-                        font-size: 12px;
-                    }
-                }
-
                 .figures {
                     display: grid;
                     grid-template-columns: repeat(3, minmax(0, 1fr));
-                    margin: 14px 0 4px;
+                    align-items: center;
+                    height: 64px;
                     text-align: center;
                 }
 
@@ -776,6 +1012,7 @@ export class AdsbReceiverCard extends LitElement {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
+                    min-width: 0;
                     padding: 0 4px;
                     text-align: center;
                 }
@@ -794,16 +1031,28 @@ export class AdsbReceiverCard extends LitElement {
                 .unit {
                     font-size: 13px;
                     font-weight: var(--ha-font-weight-normal, 400);
+                    color: var(--secondary-text-color);
                 }
 
-                .label {
+                .figure .label {
+                    max-width: 100%;
                     font-size: 12px;
+                    color: var(--secondary-text-color);
                 }
 
+                /* The curve and its caption, with room under the caption before the meter. */
                 .curve {
                     display: block;
+                    box-sizing: border-box;
                     width: 100%;
-                    margin-top: 10px;
+                    min-height: 64px;
+                    padding-top: 4px;
+                }
+
+                .plot {
+                    position: relative;
+                    display: block;
+                    height: 36px;
                 }
 
                 /* The present value sits on the right edge, and its dot would be cut in half there. */
@@ -815,7 +1064,7 @@ export class AdsbReceiverCard extends LitElement {
                 .curve svg {
                     display: block;
                     width: 100%;
-                    height: 44px;
+                    height: 36px;
                 }
 
                 svg path {
@@ -838,24 +1087,68 @@ export class AdsbReceiverCard extends LitElement {
                     vector-effect: non-scaling-stroke;
                 }
 
+                /* The point under the pointer, and its hour and value above the line. */
+                .plot .dot {
+                    position: absolute;
+                    width: 8px;
+                    height: 8px;
+                    margin: -4px 0 0 -4px;
+                    border-radius: 50%;
+                    background: var(--primary-color);
+                    box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
+                    pointer-events: none;
+                }
+
+                .tip {
+                    position: absolute;
+                    bottom: calc(100% + 4px);
+                    z-index: 2;
+                    transform: translateX(-50%);
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    background: var(--primary-text-color);
+                    color: var(--ha-card-background, var(--card-background-color, #fff));
+                    font-size: 12px;
+                    white-space: nowrap;
+                    pointer-events: none;
+                }
+
+                .tip.start {
+                    transform: none;
+                }
+
+                .tip.end {
+                    transform: translateX(-100%);
+                }
+
                 .caption {
                     display: flex;
                     justify-content: space-between;
                     gap: 8px;
                     font-size: 11px;
+                    color: var(--secondary-text-color);
                 }
 
+                /* A line of levels and the bar, with room under the bar before the tabs. */
                 .meter {
-                    margin-top: 12px;
+                    height: 32px;
                 }
 
                 .levels {
                     display: flex;
-                    flex-wrap: wrap;
                     justify-content: space-between;
-                    gap: 0 12px;
-                    margin-bottom: 4px;
+                    gap: 12px;
                     font-size: 12px;
+                    line-height: 18px;
+                    color: var(--secondary-text-color);
+                }
+
+                .levels button {
+                    min-width: 0;
+                }
+
+                .short {
+                    display: none;
                 }
 
                 .bar {
@@ -891,101 +1184,92 @@ export class AdsbReceiverCard extends LitElement {
                     background: var(--primary-color);
                 }
 
+                /* The tabs reach the card's edges, with a line under them that the picked one's underline covers. */
+                .tabs {
+                    display: flex;
+                    height: 32px;
+                    margin: 0 -16px;
+                    padding: 0 16px;
+                    box-shadow: inset 0 -1px var(--divider-color);
+                }
+
+                .tab {
+                    flex: 1 1 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    min-width: 0;
+                    border-bottom: 2px solid transparent;
+                    font-size: 13px;
+                    color: var(--secondary-text-color);
+                }
+
+                .tab.on {
+                    border-bottom-color: var(--primary-color);
+                    color: var(--primary-text-color);
+                }
+
+                .tab .count {
+                    flex: none;
+                    color: var(--secondary-text-color);
+                }
+
+                .tab .problem {
+                    flex: none;
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: var(--error-color, #db4437);
+                }
+
+                /* On a narrow card the version goes, and the meter and the aircraft's tab take their short names. */
+                @container (max-width: 299px) {
+                    .version,
+                    .long {
+                        display: none;
+                    }
+
+                    .short {
+                        display: inline;
+                    }
+
+                    .value {
+                        font-size: 20px;
+                    }
+
+                    .unit {
+                        font-size: 12px;
+                    }
+                }
+
                 /*
-                 * Held to a height, by its height mode or a sections view's rows, the card is a column in which the top and
-                 * the figures stay and the rest scrolls together, the list of aircraft with it rather than on its own.
+                 * Held to a height, by its height mode or a sections view's rows, only the pane scrolls. It reaches out over
+                 * the card's padding at the sides and 4 px down, where the focus rings are drawn.
                  */
                 ha-card.held {
-                    display: flex;
-                    flex-direction: column;
                     overflow: hidden;
                 }
 
-                ha-card.held > * {
-                    flex: none;
-                }
-
-                /*
-                 * The scroller clips at its padding box, so it reaches out over the card's padding at the sides and 4 px up and
-                 * down, where the curve's present dot, the meter's marks at its ends and the focus rings are drawn.
-                 */
-                ha-card.held > .scroll {
-                    margin: -4px -16px;
-                    padding: 4px 16px;
+                ha-card.held > .pane {
                     flex: 1 1 auto;
                     min-height: 0;
+                    margin: 0 -16px -4px;
+                    padding: 0 16px 4px;
                     overflow-y: auto;
                     scrollbar-width: thin;
                 }
 
-                /* Clipped, not hidden, which would make the fold the scroller the list's column heads stick to. */
-                ha-card.held .fold-in {
-                    overflow: clip;
-                }
-
-                .aircraft {
-                    margin-top: 12px;
-                    border-top: 1px solid var(--divider-color);
-                }
-
-                .list-heading {
-                    display: flex;
-                    flex: none;
-                    align-items: center;
-                    gap: 8px;
-                    width: 100%;
-                    padding: 10px 0 8px;
-                    font-size: 14px;
-                }
-
-                .list-heading .count {
-                    color: var(--secondary-text-color);
-                }
-
-                .list-heading ha-icon {
-                    --mdc-icon-size: 20px;
-                    margin-left: auto;
-                    color: var(--secondary-text-color);
-                    transition: transform var(--ha-animation-duration-fast, 150ms);
-                }
-
-                .list-heading.open ha-icon {
-                    transform: rotate(180deg);
-                }
-
-                /* The list slides open and shut, on Home Assistant's timing, which is near none under the system's reduced motion. */
-                .fold {
-                    display: grid;
-                    grid-template-rows: 0fr;
-                    min-height: 0;
-                    transition: grid-template-rows var(--ha-animation-duration-normal, 250ms) ease;
-                }
-
-                .fold.open {
-                    grid-template-rows: 1fr;
-                }
-
-                .fold-in {
-                    min-height: 0;
-                    overflow: hidden;
-                }
-
-                @media (prefers-reduced-motion: reduce) {
-                    .fold,
-                    .list-heading ha-icon {
-                        transition: none;
-                    }
-                }
-
-                /* The list's last row has its own line under it, the feeders'. */
-                .aircraft + .feeders {
-                    margin-top: 0;
-                }
-
-                .aircraft .message {
-                    padding: 4px 0 8px;
+                .pane .message {
+                    padding: 4px 0;
                     font-size: 13px;
+                    line-height: 24px;
                     color: var(--secondary-text-color);
+                }
+
+                /* The column heads and the room under the last aircraft make one step together. */
+                .planes {
+                    padding-bottom: 8px;
                 }
 
                 .plane-head,
@@ -996,18 +1280,15 @@ export class AdsbReceiverCard extends LitElement {
                     gap: 0 8px;
                 }
 
-                /*
-                 * Kept at the top of a held card's scroller, over the scroller's 4 px of top padding, with as much more padding
-                 * of its own, drawn above where it sits. Elsewhere the fold, which hides its overflow, holds it in place.
-                 */
+                /* Kept at the top of a held card's pane while the aircraft scroll under it. */
                 .plane-head {
                     position: sticky;
-                    top: -4px;
+                    top: 0;
                     z-index: 1;
                     background: var(--ha-card-background, var(--card-background-color, #fff));
-                    margin-top: -4px;
-                    padding: 6px 0 4px;
+                    padding: 4px 0;
                     font-size: 11px;
+                    line-height: 16px;
                     color: var(--secondary-text-color);
                 }
 
@@ -1015,18 +1296,30 @@ export class AdsbReceiverCard extends LitElement {
                     text-align: right;
                 }
 
+                /*
+                 * Dividers drawn inside the step they top, so they add nothing to its height. A pane without tabs over it
+                 * has the tabs' line on its first row, the column heads' kept while the aircraft scroll under them.
+                 */
+                .plane,
+                .feeder + .feeder,
+                .pane.alone .plane-head,
+                .pane.alone > .message,
+                .pane.alone > .feeder:first-child {
+                    box-shadow: inset 0 1px var(--divider-color);
+                }
+
+                /* Half a row each, its two lines cut short rather than wrapped, so two aircraft fill a row. */
                 .plane {
                     grid-template-areas: "id altitude signal" "sub altitude signal";
-                    padding: 5px 0;
-                    border-top: 1px solid var(--divider-color);
+                    padding-top: 2px;
                     font-size: 13px;
                 }
 
+                /* A fixed height, as the position icon would stretch the line box a pixel past the step. */
                 .plane .id {
                     grid-area: id;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
+                    height: 16px;
+                    line-height: 16px;
                 }
 
                 .plane .callsign {
@@ -1049,6 +1342,7 @@ export class AdsbReceiverCard extends LitElement {
                 .plane .sub {
                     grid-area: sub;
                     font-size: 11px;
+                    line-height: 14px;
                     color: var(--secondary-text-color);
                 }
 
@@ -1083,23 +1377,17 @@ export class AdsbReceiverCard extends LitElement {
                     color: var(--secondary-text-color);
                 }
 
-                .feeders {
-                    margin-top: 12px;
-                    padding-top: 6px;
-                    border-top: 1px solid var(--divider-color);
-                }
-
+                /* A feeder is a step, its name kept before its value is cut. */
                 .feeder {
                     display: flex;
-                    flex-wrap: wrap;
                     align-items: center;
-                    gap: 2px 10px;
+                    gap: 10px;
                     width: 100%;
-                    padding: 7px 0;
+                    height: 32px;
                     font-size: 13px;
                 }
 
-                .dot {
+                .feeder .dot {
                     flex: none;
                     width: 8px;
                     height: 8px;
@@ -1107,24 +1395,32 @@ export class AdsbReceiverCard extends LitElement {
                     background: var(--disabled-text-color, #9e9e9e);
                 }
 
-                .dot.ok {
+                .feeder .dot.ok {
                     background: var(--success-color, #43a047);
                 }
 
-                .dot.error {
+                .feeder .dot.error {
                     background: var(--error-color, #db4437);
                 }
 
                 .feeder-name {
-                    flex: 1 1 auto;
-                    min-width: 0;
-                    overflow-wrap: anywhere;
+                    flex: 0 0 auto;
+                    max-width: 55%;
                 }
 
                 .feeder-value {
+                    flex: 0 1 auto;
+                    min-width: 0;
                     margin-left: auto;
                     text-align: right;
-                    overflow-wrap: anywhere;
+                    color: var(--secondary-text-color);
+                }
+
+                /* One row of a sections view at full width, and centred in the rows it fills or is held to. */
+                ha-card.compact {
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
                 }
 
                 .compact .row {
@@ -1132,7 +1428,7 @@ export class AdsbReceiverCard extends LitElement {
                     align-items: center;
                     gap: 12px;
                     width: 100%;
-                    padding: 12px 14px;
+                    padding: 9px 14px;
                 }
 
                 .compact .icon {
@@ -1142,15 +1438,28 @@ export class AdsbReceiverCard extends LitElement {
 
                 .compact .name {
                     font-size: 14px;
+                    white-space: normal;
+                    overflow-wrap: anywhere;
                 }
 
                 .compact .status {
                     font-weight: var(--ha-font-weight-normal, 400);
                 }
 
-                .line {
-                    font-size: 12px;
+                .compact .line {
+                    line-height: 16px;
+                    white-space: normal;
                     overflow-wrap: anywhere;
+                }
+
+                .piece {
+                    white-space: nowrap;
+                }
+
+                /* Held, the compact layout's two lines keep to one line each, so it is one row at any width. */
+                ha-card.compact.held .name,
+                ha-card.compact.held .line {
+                    white-space: nowrap;
                 }
 
                 .small-curve {

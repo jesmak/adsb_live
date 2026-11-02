@@ -54,7 +54,7 @@ STATS_MAX_AGE_SECONDS = 180
 # or one that failed, don't count as leaving.
 EVENT_REARM_SECONDS = 10 * 60
 
-# The receiver's own aircraft are read for its list only when someone has the list open, and an answer is kept this
+# The receiver's own aircraft are read for its list only while someone has them shown, and an answer is kept this
 # long, so that dashboards open side by side ask readsb once. readsb writes aircraft.json every second.
 HEARD_CACHE_SECONDS = 5
 

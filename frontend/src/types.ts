@@ -1,5 +1,5 @@
 import type { LovelaceCardConfig } from "./hass";
-import type { HeightConfig } from "./height";
+import type { RowStepConfig } from "./rows";
 
 /** Another feeder's status as a row under the receiver, such as Flightradar24's fr24feed. */
 export interface FeederConfig {
@@ -11,7 +11,7 @@ export interface FeederConfig {
     detail?: string;
 }
 
-export interface AdsbReceiverCardConfig extends LovelaceCardConfig, HeightConfig {
+export interface AdsbReceiverCardConfig extends LovelaceCardConfig, RowStepConfig {
     /** The receiver's device, from the ADS-B Live integration. */
     device: string;
     /** Replaces the device's name. */
@@ -19,6 +19,4 @@ export interface AdsbReceiverCardConfig extends LovelaceCardConfig, HeightConfig
     /** `full` shows everything, `compact` one row with a small curve. */
     layout?: "full" | "compact";
     feeders?: FeederConfig[];
-    /** Whether the list of the aircraft the receiver hears is open when the card is shown. It opens from its heading anyway. */
-    list_open?: boolean;
 }

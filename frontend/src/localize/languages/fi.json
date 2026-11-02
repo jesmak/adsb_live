@@ -4,6 +4,7 @@
         "description": "ADS-B-vastaanottimen tila ADS-B Live -integraatiosta",
         "invalid_configuration": "Virheellinen konfiguraatio. Valitse vastaanotin.",
         "invalid_height": "Virheellinen korkeus. Korkeuksien (height ja max_height) on oltava positiivisia lukuja pikseleinä, ja korkeustilan (height_mode) auto, fixed tai max.",
+        "invalid_row_step": "Virheellinen pyöristys. Pyöristyksen (row_step) on oltava full tai half.",
         "no_receiver": "Vastaanotinta ei löydy",
         "no_entity": "Entiteettiä {entity} ei löydy"
     },
@@ -25,15 +26,20 @@
     "curve": {
         "past": "{hours} h sitten",
         "now": "nyt",
-        "peak": "huippu {value}"
+        "peak": "huippu {value}",
+        "point": "klo {time} · keskimäärin {value} seurannassa",
+        "point_now": "nyt · {value} seurannassa"
     },
     "meter": {
         "signal": "Signaali",
         "noise": "Kohina",
-        "signal_unknown": "Signaali ei tiedossa"
+        "signal_unknown": "Signaali ei tiedossa",
+        "noise_short": "K",
+        "signal_short": "S"
     },
     "list": {
         "title": "Kuultavat koneet",
+        "title_short": "Koneet",
         "name_type": "Tunnus · tyyppi",
         "altitude": "Korkeus",
         "signal": "Signaali",
@@ -47,6 +53,10 @@
         "empty": "Viimeisen minuutin aikana ei ole kuultu koneita",
         "failed": "Koneita ei saatu luettua"
     },
+    "feeders": {
+        "title": "Syötteet",
+        "problem": "Syötteessä on ongelma"
+    },
     "editor": {
         "device": "Vastaanotin",
         "name": "Nimi",
@@ -54,19 +64,21 @@
         "layout": "Asettelu",
         "layout_full": "Täysi",
         "layout_compact": "Tiivis, yksi rivi",
-        "list_open": "Koneiden lista auki alussa",
-        "list_open_helper": "Muuten lista avautuu otsikostaan",
         "height_mode": "Korkeus",
         "height_mode_helper": "Osioihin jaetun näkymän asettelu-välilehdellä asetettu korkeus ohittaa tämän. Näkyy täydessä asettelussa.",
         "height_mode_auto": "Sisällön mukaan",
         "height_mode_fixed": "Kiinteä",
         "height_mode_max": "Kasvaa rajaan asti",
         "height": "Kiinteä korkeus",
-        "height_helper": "Kortti on aina näin korkea, ja kaikki lukujen alla vierii sen sisällä.",
+        "height_helper": "Kortti on aina näin korkea, ja koneiden tai syötteiden rivit vierivät sen sisällä.",
         "max_height": "Enimmäiskorkeus",
-        "max_height_helper": "Kortti kasvaa sisältönsä mukana tähän korkeuteen asti, ja sen jälkeen kaikki lukujen alla vierii.",
+        "max_height_helper": "Kortti kasvaa sisältönsä mukana tähän korkeuteen asti, ja sen jälkeen koneiden tai syötteiden rivit vierivät.",
+        "row_step": "Pyöristys osioihin jaetussa näkymässä",
+        "row_step_helper": "Automaattisella rivikorkeudella kortin korkeus pyöristetään ylöspäin kokonaisiin riveihin, tai tilan säästämiseksi puolikkaisiin riveihin.",
+        "row_step_full": "Kokonaisiin riveihin",
+        "row_step_half": "Puolikkaisiin riveihin",
         "feeders": "Syötteet",
-        "feeders_helper": "Muiden syöttäjien tila riveinä vastaanottimen alla, esimerkiksi Flightradar24:n. Näkyy täydessä asettelussa.",
+        "feeders_helper": "Muiden syöttäjien, esimerkiksi Flightradar24:n, tila riveinä omalla välilehdellään. Näkyy täydessä asettelussa.",
         "feeder_entity": "Tila",
         "feeder_entity_helper": "Onko syöttäjä toiminnassa",
         "feeder_name": "Nimi",
