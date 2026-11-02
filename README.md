@@ -324,30 +324,30 @@ type: custom:map-feed-card
 title: Aircraft
 list: true
 entities:
-    - entity: sensor.aircraft_near_tampere
-      show_area: true
-      labels: true
+  - entity: sensor.aircraft_near_tampere
+    show_area: true
+    labels: true
 ```
 
 A notice when the receiver has heard nothing for a while, or has stopped, which makes its sensors unavailable:
 
 ```yaml
 triggers:
-    - trigger: numeric_state
-      entity_id: sensor.ads_b_messages_per_second
-      below: 1
-      for:
-          minutes: 30
-    - trigger: state
-      entity_id: sensor.ads_b_messages_per_second
-      to: unavailable
-      for:
-          minutes: 30
+  - trigger: numeric_state
+    entity_id: sensor.ads_b_messages_per_second
+    below: 1
+    for:
+      minutes: 30
+  - trigger: state
+    entity_id: sensor.ads_b_messages_per_second
+    to: unavailable
+    for:
+      minutes: 30
 actions:
-    - action: persistent_notification.create
-      data:
-          title: ADS-B
-          message: The receiver has decoded almost nothing, or not answered, for 30 minutes.
+  - action: persistent_notification.create
+    data:
+      title: ADS-B
+      message: The receiver has decoded almost nothing, or not answered, for 30 minutes.
 ```
 
 A notice when an aircraft in the feed squawks an emergency. An update can bring several events at once, so an
@@ -356,19 +356,19 @@ automation whose actions take a while, such as a notification to a phone, runs q
 ```yaml
 mode: queued
 triggers:
-    - trigger: event.received
-      target:
-          entity_id: event.aircraft_near_tampere_aircraft_events
-      options:
-          event_type:
-              - emergency
+  - trigger: event.received
+    target:
+      entity_id: event.aircraft_near_tampere_aircraft_events
+    options:
+      event_type:
+        - emergency
 actions:
-    - action: persistent_notification.create
-      data:
-          title: Emergency squawk
-          message: >-
-              {{ trigger.to_state.attributes.name }} squawks {{ trigger.to_state.attributes.squawk }},
-              {{ trigger.to_state.attributes.distance_km }} km away.
+  - action: persistent_notification.create
+    data:
+      title: Emergency squawk
+      message: >-
+        {{ trigger.to_state.attributes.name }} squawks {{ trigger.to_state.attributes.squawk }},
+        {{ trigger.to_state.attributes.distance_km }} km away.
 ```
 
 The receiver card with Flightradar24 as a row under it. fr24feed's own status page, `monitor.json` on port 8754, can be
@@ -378,9 +378,9 @@ read into Home Assistant with a REST sensor, and its `feed_status` turned into a
 type: custom:adsb-receiver-card
 device: 0123456789abcdef0123456789abcdef
 feeders:
-    - entity: binary_sensor.fr24feed_link
-      name: Flightradar24
-      detail: sensor.fr24feed_reported_aircraft
+  - entity: binary_sensor.fr24feed_link
+    name: Flightradar24
+    detail: sensor.fr24feed_reported_aircraft
 ```
 
 The receiver on one row, for a corner of another view:
