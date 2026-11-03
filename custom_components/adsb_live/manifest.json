@@ -1,6 +1,7 @@
 {
   "domain": "adsb_live",
   "name": "ADS-B Live",
+  "categories": ["vehicles_transport.flights"],
   "codeowners": ["@jesmak"],
   "config_flow": true,
   "dependencies": ["http", "lovelace"],
