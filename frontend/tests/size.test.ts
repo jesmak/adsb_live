@@ -68,6 +68,22 @@ describe("filling the rows of a sections view", () => {
         expect(await filled(element, 430)).toBe(style);
     });
 
+    // The limit is rounded down to the rows: 600 px to 568. Held, the pane's end reaches 4 px into the card's padding, so
+    // a pane ending at 430 is content of 437 px.
+    it.each([
+        ["under it, on the rows its content needs", 430, "max-height: 568px; min-height: 440px; --spare: 3px"],
+        ["over it, on the limit rounded down to the rows", 700, "max-height: 568px; min-height: 568px; --spare: 0px"],
+    ])("on automatic rows, grows up to a limit %s", async (_name, end, style) => {
+        const element = await card({ max_height: 600 }, "grid");
+        expect(await filled(element, end)).toBe(style);
+    });
+
+    it("fills the compact layout's rows whatever height mode is left from the full layout", async () => {
+        const element = await card({ layout: "compact", max_height: 40 }, "grid");
+        box(one(element, ".row"), 0, 60);
+        expect(await filled(element, 0)).toBe("min-height: 120px; --spare: 60px");
+    });
+
     it("measures to its last part's end, never an element a theme adds after it", async () => {
         const element = await card({}, "grid");
         const added = document.createElement("div");
@@ -92,7 +108,6 @@ describe("filling the rows of a sections view", () => {
 
     it.each([
         ["outside a sections view", {}, undefined, ""],
-        ["held up to a limit", { max_height: 500 }, "grid", "max-height: 500px"],
         ["in the compact layout on rows set in the layout tab", { layout: "compact", grid_options: { rows: 2 } }, "grid", "height: 100%"],
     ])("leaves its rows alone %s", async (_name, config, layout, style) => {
         const element = await card(config as Partial<AdsbReceiverCardConfig>, layout);
@@ -333,11 +348,12 @@ describe("the editor in the compact layout", () => {
 
     it.each([
         [
-            "the full layout offers the height mode, and the row step only while it fits its content",
+            "the full layout offers no height mode, set in YAML only, and the row step unless held to a fixed height",
             { height: 300 },
-            ["height_mode", "height"],
+            [],
             [],
         ],
+        ["the full layout offers the row step up to a limit", { max_height: 300 }, [], ["row_step"]],
         [
             "the compact layout offers no height mode, and always its row step",
             { layout: "compact" as const, height: 300 },

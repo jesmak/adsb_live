@@ -5,7 +5,6 @@ import { property, state } from "lit/decorators.js";
 
 import { PLATFORM, RECEIVER_MANUFACTURER } from "./const";
 import type { HomeAssistant } from "./hass";
-import { heightData, heightSchema, tidyHeight } from "./height";
 import { browserLanguage, translate } from "./localize/localize";
 import { rowStepData, rowStepSchema, tidyRowStep } from "./rows";
 import type { AdsbReceiverCardConfig, FeederConfig } from "./types";
@@ -34,8 +33,7 @@ function receiverSchema(config: AdsbReceiverCardConfig, text: (key: string) => s
                 },
             },
         },
-        // The compact layout has no height mode, and so always offers its row step.
-        ...(compact(config) ? [] : heightSchema(config, text)),
+        // The height mode is set in YAML only. The compact layout has none, and so always offers its row step.
         ...rowStepSchema(compact(config) ? withoutHeight(config) : config, text),
     ];
 }
@@ -109,7 +107,7 @@ export class AdsbReceiverCardEditor extends LitElement {
         if (!this.hass || !this.config) {
             return nothing;
         }
-        const data = { layout: "full", ...rowStepData(compact(this.config) ? withoutHeight(this.config) : heightData(this.config)) };
+        const data = { layout: "full", ...rowStepData(compact(this.config) ? withoutHeight(this.config) : this.config) };
         // Two forms, so that the feeders' helper, which Home Assistant's list of objects doesn't show, sits above the list.
         return html`
             <ha-form
@@ -146,7 +144,7 @@ export class AdsbReceiverCardEditor extends LitElement {
     private valueChanged(event: CustomEvent<{ value: AdsbReceiverCardConfig }>): void {
         // A height left from the full layout does nothing in the compact one, and would hide and drop its row step.
         const value = compact(event.detail.value) ? withoutHeight(event.detail.value) : event.detail.value;
-        const config: AdsbReceiverCardConfig = tidyRowStep(tidyHeight(value));
+        const config: AdsbReceiverCardConfig = tidyRowStep(value);
         const feeders = compactFeeders(config.feeders);
         if (feeders.length) {
             config.feeders = feeders;

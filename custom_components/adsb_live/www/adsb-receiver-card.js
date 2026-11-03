@@ -652,72 +652,6 @@ function heardAgo(heard, now) {
   return seconds < 60 ? { unit: "seconds", value: seconds } : { unit: "minutes", value: Math.floor(seconds / 60) };
 }
 
-// src/height.ts
-var HEIGHT_MODES = ["auto", "fixed", "max"];
-var pixels = (value) => value == null || typeof value === "number" && Number.isFinite(value) && value > 0;
-function validHeight(config) {
-  return (config.height_mode == null || HEIGHT_MODES.includes(config.height_mode)) && pixels(config.height) && pixels(config.max_height);
-}
-function heightMode(config) {
-  return config.height_mode ?? (config.height ? "fixed" : config.max_height ? "max" : "auto");
-}
-var ROW_HEIGHT = 56;
-var ROW_GAP = 8;
-function heightStyle(config, layout, minimum = 0) {
-  const rows = config.grid_options ? config.grid_options.rows : config.layout_options?.grid_rows;
-  if (layout === "grid" && typeof rows === "number") {
-    return "height: 100%";
-  }
-  const mode = heightMode(config);
-  if (mode === "fixed" && config.height) {
-    return `height: ${Math.max(config.height, minimum)}px`;
-  }
-  return mode === "max" && config.max_height ? `max-height: ${Math.max(config.max_height, minimum)}px` : "";
-}
-function gridMinRows(minimum) {
-  return Math.max(1, Math.ceil((minimum + ROW_GAP) / (ROW_HEIGHT + ROW_GAP)));
-}
-function heightCardSize(config, content, minimum = 0) {
-  const mode = heightMode(config);
-  if (mode === "fixed" && config.height) {
-    return Math.max(1, Math.round(Math.max(config.height, minimum) / 50));
-  }
-  return mode === "max" && config.max_height ? Math.max(1, Math.min(content, Math.round(Math.max(config.max_height, minimum) / 50))) : content;
-}
-function heightSchema(config, text) {
-  const mode = heightMode(config);
-  const field = (name) => ({
-    name,
-    selector: { number: { min: 100, max: 2e3, step: 10, unit_of_measurement: "px", mode: "box" } }
-  });
-  return [
-    {
-      name: "height_mode",
-      selector: {
-        select: { mode: "dropdown", options: HEIGHT_MODES.map((value) => ({ value, label: text(`editor.height_mode_${value}`) })) }
-      }
-    },
-    ...mode === "fixed" ? [field("height")] : mode === "max" ? [field("max_height")] : []
-  ];
-}
-function heightData(config) {
-  return { ...config, height_mode: heightMode(config) };
-}
-function tidyHeight(config) {
-  const mode = heightMode(config);
-  const tidied = { ...config };
-  if (mode !== "fixed" || !tidied.height) {
-    delete tidied.height;
-  }
-  if (mode !== "max" || !tidied.max_height) {
-    delete tidied.max_height;
-  }
-  if (!tidied.height_mode || heightMode({ ...tidied, height_mode: void 0 }) === mode) {
-    delete tidied.height_mode;
-  }
-  return tidied;
-}
-
 // src/localize/languages/en.json
 var en_default = {
   common: {
@@ -785,15 +719,6 @@ var en_default = {
     layout: "Layout",
     layout_full: "Full",
     layout_compact: "Compact, one row",
-    height_mode: "Height",
-    height_mode_helper: "A height set in the layout tab of a sections view is used instead. Shown in the full layout.",
-    height_mode_auto: "Fits the content",
-    height_mode_fixed: "Fixed",
-    height_mode_max: "Grows up to a limit",
-    height: "Fixed height",
-    height_helper: "The card is always this tall, and the aircraft's or feeders' rows scroll inside it.",
-    max_height: "Maximum height",
-    max_height_helper: "The card grows with its content up to this height, and then the aircraft's or feeders' rows scroll.",
     row_step: "Rounding in a sections view",
     row_step_helper: "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
     row_step_full: "Whole rows",
@@ -876,15 +801,6 @@ var fi_default = {
     layout: "Asettelu",
     layout_full: "T\xE4ysi",
     layout_compact: "Tiivis, yksi rivi",
-    height_mode: "Korkeus",
-    height_mode_helper: "Osioihin jaetun n\xE4kym\xE4n asettelu-v\xE4lilehdell\xE4 asetettu korkeus ohittaa t\xE4m\xE4n. N\xE4kyy t\xE4ydess\xE4 asettelussa.",
-    height_mode_auto: "Sis\xE4ll\xF6n mukaan",
-    height_mode_fixed: "Kiinte\xE4",
-    height_mode_max: "Kasvaa rajaan asti",
-    height: "Kiinte\xE4 korkeus",
-    height_helper: "Kortti on aina n\xE4in korkea, ja koneiden tai sy\xF6tteiden rivit vieriv\xE4t sen sis\xE4ll\xE4.",
-    max_height: "Enimm\xE4iskorkeus",
-    max_height_helper: "Kortti kasvaa sis\xE4lt\xF6ns\xE4 mukana t\xE4h\xE4n korkeuteen asti, ja sen j\xE4lkeen koneiden tai sy\xF6tteiden rivit vieriv\xE4t.",
     row_step: "Py\xF6ristys osioihin jaetussa n\xE4kym\xE4ss\xE4",
     row_step_helper: "Automaattisella rivikorkeudella kortin korkeus py\xF6ristet\xE4\xE4n yl\xF6sp\xE4in kokonaisiin riveihin, tai tilan s\xE4\xE4st\xE4miseksi puolikkaisiin riveihin.",
     row_step_full: "Kokonaisiin riveihin",
@@ -924,6 +840,39 @@ function browserLanguage() {
   return document.documentElement.lang || navigator.language || "en";
 }
 
+// src/height.ts
+var HEIGHT_MODES = ["auto", "fixed", "max"];
+var pixels = (value) => value == null || typeof value === "number" && Number.isFinite(value) && value > 0;
+function validHeight(config) {
+  return (config.height_mode == null || HEIGHT_MODES.includes(config.height_mode)) && pixels(config.height) && pixels(config.max_height);
+}
+function heightMode(config) {
+  return config.height_mode ?? (config.height ? "fixed" : config.max_height ? "max" : "auto");
+}
+var ROW_HEIGHT = 56;
+var ROW_GAP = 8;
+function heightStyle(config, layout, minimum = 0) {
+  const rows = config.grid_options ? config.grid_options.rows : config.layout_options?.grid_rows;
+  if (layout === "grid" && typeof rows === "number") {
+    return "height: 100%";
+  }
+  const mode = heightMode(config);
+  if (mode === "fixed" && config.height) {
+    return `height: ${Math.max(config.height, minimum)}px`;
+  }
+  return mode === "max" && config.max_height ? `max-height: ${Math.max(config.max_height, minimum)}px` : "";
+}
+function gridMinRows(minimum) {
+  return Math.max(1, Math.ceil((minimum + ROW_GAP) / (ROW_HEIGHT + ROW_GAP)));
+}
+function heightCardSize(config, content, minimum = 0) {
+  const mode = heightMode(config);
+  if (mode === "fixed" && config.height) {
+    return Math.max(1, Math.round(Math.max(config.height, minimum) / 50));
+  }
+  return mode === "max" && config.max_height ? Math.max(1, Math.min(content, Math.round(Math.max(config.max_height, minimum) / 50))) : content;
+}
+
 // src/rows.ts
 var ROW_STEPS = ["full", "half"];
 var ROW_PX = 64;
@@ -931,12 +880,34 @@ var ROW_GAP_PX = 8;
 function validRowStep(config) {
   return config.row_step === void 0 || config.row_step === null || ROW_STEPS.includes(config.row_step);
 }
-function filledHeight(content, config) {
-  const step = config.row_step === "half" ? ROW_PX / 2 : ROW_PX;
-  return Math.max(1, Math.ceil((content + ROW_GAP_PX) / step)) * step - ROW_GAP_PX;
+var step = (config) => config.row_step === "half" ? ROW_PX / 2 : ROW_PX;
+function filledHeight(content, config, limit = Infinity) {
+  return Math.min(Math.max(1, Math.ceil((content + ROW_GAP_PX) / step(config))) * step(config) - ROW_GAP_PX, limit);
+}
+function fillLimit(config, layout, minimum = 0) {
+  const rows = config.grid_options ? config.grid_options.rows : config.layout_options?.grid_rows;
+  if (layout !== "grid" || typeof rows === "number") {
+    return 0;
+  }
+  const mode = heightMode(config);
+  if (mode === "fixed" && config.height) {
+    return 0;
+  }
+  if (mode !== "max" || !config.max_height) {
+    return Infinity;
+  }
+  const down = Math.floor((config.max_height + ROW_GAP_PX) / step(config)) * step(config) - ROW_GAP_PX;
+  return Math.max(down, filledHeight(minimum, config));
+}
+function filledStyle(config, layout, minimum, filled) {
+  const limit = fillLimit(config, layout, minimum);
+  if (!limit) {
+    return heightStyle(config, layout, minimum);
+  }
+  return [limit < Infinity && `max-height: ${limit}px`, filled && `min-height: ${filled}px`].filter(Boolean).join("; ");
 }
 function rowStepSchema(config, text) {
-  if (heightMode(config) !== "auto") {
+  if (heightMode(config) === "fixed" && config.height) {
     return [];
   }
   return [
@@ -953,7 +924,7 @@ function rowStepData(config) {
 }
 function tidyRowStep(config) {
   const tidied = { ...config };
-  if (tidied.row_step !== "half" || heightMode(tidied) !== "auto") {
+  if (tidied.row_step !== "half" || heightMode(tidied) === "fixed" && tidied.height) {
     delete tidied.row_step;
   }
   return tidied;
@@ -980,8 +951,7 @@ function receiverSchema(config, text) {
         }
       }
     },
-    // The compact layout has no height mode, and so always offers its row step.
-    ...compact(config) ? [] : heightSchema(config, text),
+    // The height mode is set in YAML only. The compact layout has none, and so always offers its row step.
     ...rowStepSchema(compact(config) ? withoutHeight(config) : config, text)
   ];
 }
@@ -1042,7 +1012,7 @@ var AdsbReceiverCardEditor = class extends i4 {
     if (!this.hass || !this.config) {
       return A;
     }
-    const data = { layout: "full", ...rowStepData(compact(this.config) ? withoutHeight(this.config) : heightData(this.config)) };
+    const data = { layout: "full", ...rowStepData(compact(this.config) ? withoutHeight(this.config) : this.config) };
     return b2`
             <ha-form
                 .hass=${this.hass}
@@ -1075,7 +1045,7 @@ var AdsbReceiverCardEditor = class extends i4 {
   }
   valueChanged(event) {
     const value = compact(event.detail.value) ? withoutHeight(event.detail.value) : event.detail.value;
-    const config = tidyRowStep(tidyHeight(value));
+    const config = tidyRowStep(value);
     const feeders = compactFeeders(config.feeders);
     if (feeders.length) {
       config.feeders = feeders;
@@ -1472,7 +1442,8 @@ var AdsbReceiverCard = class extends i4 {
   }
   /**
    * In a sections view whose rows are left automatic, the card takes the whole rows its content needs, or the half rows
-   * with `row_step: half`, so the cards under it stay on the rows. The room left over goes under the top, in the compact
+   * with `row_step: half`, so the cards under it stay on the rows, up to the limit of a card that grows up to one. The
+   * room left over goes under the top, in the compact
    * layout around its row. Held to a height, the room the pane doesn't need stays at its bottom, so the fixed part
    * doesn't move when the other tab is picked.
    */
@@ -1485,7 +1456,8 @@ var AdsbReceiverCard = class extends i4 {
     if (width !== this.width) {
       this.width = width;
     }
-    if (this.layout !== "grid" || this.held() || card.classList.contains("message")) {
+    const limit = fillLimit(this.sizing(), this.layout, this.minimumHeight());
+    if (!limit || card.classList.contains("message")) {
       if (this.filled) this.filled = 0;
       if (this.spare) this.spare = 0;
       return;
@@ -1501,7 +1473,7 @@ var AdsbReceiverCard = class extends i4 {
     let content = last.getBoundingClientRect().bottom + px(getComputedStyle(last).marginBottom) - card.getBoundingClientRect().top + px(style.paddingBottom) + px(style.borderBottomWidth);
     const top = card.querySelector(":scope > .top");
     content -= top ? px(getComputedStyle(top).paddingBottom) : 0;
-    const filled = filledHeight(Math.round(content), this.config ?? {});
+    const filled = filledHeight(Math.round(content), this.sizing(), limit);
     const spare = Math.max(0, Math.floor(filled - content));
     if (filled !== this.filled) {
       this.filled = filled;
@@ -1510,13 +1482,10 @@ var AdsbReceiverCard = class extends i4 {
       this.spare = spare;
     }
   }
-  /** The card's inline style: the height it is held to, or the rows it fills, with their spare room under the top. */
+  /** The card's inline style: the height it is held to, or the rows it fills up to any limit, with their spare room under the top. */
   cardStyle() {
-    const held = this.heightStyle();
-    if (held || !this.filled) {
-      return held;
-    }
-    return `min-height: ${this.filled}px; --spare: ${this.spare}px`;
+    const style = filledStyle(this.sizing(), this.layout, this.minimumHeight(), this.filled);
+    return this.filled ? `${style}; --spare: ${this.spare}px` : style;
   }
   watched() {
     if (!this.hass || !this.config) {
@@ -1573,7 +1542,7 @@ var AdsbReceiverCard = class extends i4 {
     const line = available ? [statusText, ...this.rates(sensors)] : [statusText];
     const pane = this.shownPane();
     return b2`
-            <ha-card class="full ${status} ${this.held() ? "held" : ""}" style=${this.cardStyle()}>
+            <ha-card class="full ${status} ${this.held() ? "held" : ""} ${this.filled ? "filled" : ""}" style=${this.cardStyle()}>
                 <div class="top">
                     ${this.icon()}
                     <div class="who">
@@ -1801,8 +1770,12 @@ var AdsbReceiverCard = class extends i4 {
   }
   /** The compact layout is held only by a sections view's rows, which it fills with its one row at any width. */
   heightStyle() {
+    return heightStyle(this.sizing(), this.layout, this.minimumHeight());
+  }
+  /** The config's sizing, which in the compact layout leaves out the height mode, as only a sections view's rows hold it. */
+  sizing() {
     const config = this.config ?? {};
-    return this.compact() ? heightStyle({ grid_options: config.grid_options, layout_options: config.layout_options }, this.layout) : heightStyle(config, this.layout, this.minimumHeight());
+    return this.compact() ? { grid_options: config.grid_options, layout_options: config.layout_options, row_step: config.row_step } : config;
   }
   held() {
     return this.heightStyle() !== "";
@@ -2377,6 +2350,12 @@ var AdsbReceiverCard = class extends i4 {
                     padding: 0 16px 4px;
                     overflow-y: auto;
                     scrollbar-width: thin;
+                }
+
+                /* Filling its rows up to a limit, the pane shrinks but never grows, as the room left over goes under the top
+                   and fillRows would otherwise measure it as content, keeping the card from ever shrinking. */
+                ha-card.held.filled > .pane {
+                    flex-grow: 0;
                 }
 
                 .pane .message {

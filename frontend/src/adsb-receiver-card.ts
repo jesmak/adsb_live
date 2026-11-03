@@ -33,7 +33,7 @@ import {
     valueOf,
 } from "./receiver";
 import type { NumberFormat, Point, Status } from "./receiver";
-import { filledHeight, validRowStep } from "./rows";
+import { fillLimit, filledHeight, filledStyle, validRowStep } from "./rows";
 import type { AdsbReceiverCardConfig, FeederConfig } from "./types";
 
 interface CardRegistration {
@@ -237,7 +237,8 @@ export class AdsbReceiverCard extends LitElement {
 
     /**
      * In a sections view whose rows are left automatic, the card takes the whole rows its content needs, or the half rows
-     * with `row_step: half`, so the cards under it stay on the rows. The room left over goes under the top, in the compact
+     * with `row_step: half`, so the cards under it stay on the rows, up to the limit of a card that grows up to one. The
+     * room left over goes under the top, in the compact
      * layout around its row. Held to a height, the room the pane doesn't need stays at its bottom, so the fixed part
      * doesn't move when the other tab is picked.
      */
@@ -251,7 +252,8 @@ export class AdsbReceiverCard extends LitElement {
         if (width !== this.width) {
             this.width = width;
         }
-        if (this.layout !== "grid" || this.held() || card.classList.contains("message")) {
+        const limit = fillLimit(this.sizing(), this.layout, this.minimumHeight());
+        if (!limit || card.classList.contains("message")) {
             if (this.filled) this.filled = 0;
             if (this.spare) this.spare = 0;
             return;
@@ -275,7 +277,7 @@ export class AdsbReceiverCard extends LitElement {
         // The spare room as drawn now.
         const top = card.querySelector<HTMLElement>(":scope > .top");
         content -= top ? px(getComputedStyle(top).paddingBottom) : 0;
-        const filled = filledHeight(Math.round(content), this.config ?? {});
+        const filled = filledHeight(Math.round(content), this.sizing(), limit);
         const spare = Math.max(0, Math.floor(filled - content));
         if (filled !== this.filled) {
             this.filled = filled;
@@ -285,13 +287,10 @@ export class AdsbReceiverCard extends LitElement {
         }
     }
 
-    /** The card's inline style: the height it is held to, or the rows it fills, with their spare room under the top. */
+    /** The card's inline style: the height it is held to, or the rows it fills up to any limit, with their spare room under the top. */
     private cardStyle(): string {
-        const held = this.heightStyle();
-        if (held || !this.filled) {
-            return held;
-        }
-        return `min-height: ${this.filled}px; --spare: ${this.spare}px`;
+        const style = filledStyle(this.sizing(), this.layout, this.minimumHeight(), this.filled);
+        return this.filled ? `${style}; --spare: ${this.spare}px` : style;
     }
 
     /**
@@ -373,7 +372,7 @@ export class AdsbReceiverCard extends LitElement {
         const line = available ? [statusText, ...this.rates(sensors)] : [statusText];
         const pane = this.shownPane();
         return html`
-            <ha-card class="full ${status} ${this.held() ? "held" : ""}" style=${this.cardStyle()}>
+            <ha-card class="full ${status} ${this.held() ? "held" : ""} ${this.filled ? "filled" : ""}" style=${this.cardStyle()}>
                 <div class="top">
                     ${this.icon()}
                     <div class="who">
@@ -640,10 +639,15 @@ export class AdsbReceiverCard extends LitElement {
 
     /** The compact layout is held only by a sections view's rows, which it fills with its one row at any width. */
     private heightStyle(): string {
+        return heightStyle(this.sizing(), this.layout, this.minimumHeight());
+    }
+
+    /** The config's sizing, which in the compact layout leaves out the height mode, as only a sections view's rows hold it. */
+    private sizing(): Partial<AdsbReceiverCardConfig> {
         const config: Partial<AdsbReceiverCardConfig> = this.config ?? {};
         return this.compact()
-            ? heightStyle({ grid_options: config.grid_options, layout_options: config.layout_options }, this.layout)
-            : heightStyle(config, this.layout, this.minimumHeight());
+            ? { grid_options: config.grid_options, layout_options: config.layout_options, row_step: config.row_step }
+            : config;
     }
 
     private held(): boolean {
@@ -1258,6 +1262,12 @@ export class AdsbReceiverCard extends LitElement {
                     padding: 0 16px 4px;
                     overflow-y: auto;
                     scrollbar-width: thin;
+                }
+
+                /* Filling its rows up to a limit, the pane shrinks but never grows, as the room left over goes under the top
+                   and fillRows would otherwise measure it as content, keeping the card from ever shrinking. */
+                ha-card.held.filled > .pane {
+                    flex-grow: 0;
                 }
 
                 .pane .message {

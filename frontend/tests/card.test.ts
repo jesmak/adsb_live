@@ -1135,10 +1135,10 @@ describe("adsb-receiver-card", () => {
                 ["grid rows in a sections view, over its mode", "grid", { height: 240, grid_options: { rows: 6 } }, "height: 100%"],
                 ["grid rows in a sections view, with no height", "grid", { grid_options: { rows: 6 } }, "height: 100%"],
                 [
-                    "its mode when the grid rows are automatic",
+                    "its mode rounded down to the rows when the grid rows are automatic",
                     "grid",
                     { max_height: 500, grid_options: { rows: "auto" } },
-                    "max-height: 500px",
+                    "max-height: 440px",
                 ],
                 ["its content in a sections view with no rows", "grid", {}, ""],
                 // Rows left in the configuration from a sections view mean nothing elsewhere.
@@ -1311,9 +1311,9 @@ describe("the editor", () => {
                 saved: { type: "custom:adsb-receiver-card", device: RECEIVER },
             },
             {
-                case: "a height up to a limit",
+                case: "a height up to a limit set in YAML, kept as it is",
                 form: { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: "max", max_height: 480 },
-                saved: { type: "custom:adsb-receiver-card", device: RECEIVER, max_height: 480 },
+                saved: { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: "max", max_height: 480 },
             },
             {
                 case: "a list_open left from before the tabs, which the card no longer reads",
@@ -1321,14 +1321,9 @@ describe("the editor", () => {
                 saved: { type: "custom:adsb-receiver-card", device: RECEIVER },
             },
             {
-                case: "the auto height mode shown for a configuration without one",
-                form: { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: "auto" },
-                saved: { type: "custom:adsb-receiver-card", device: RECEIVER },
-            },
-            {
-                case: "a fixed height without the maximum height left from the max mode",
+                case: "a fixed height set in YAML, kept as it is",
                 form: { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: "fixed", height: 300, max_height: 480 },
-                saved: { type: "custom:adsb-receiver-card", device: RECEIVER, height: 300 },
+                saved: { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: "fixed", height: 300, max_height: 480 },
             },
             {
                 case: "a feeder with empty fields",
