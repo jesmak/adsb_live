@@ -3,7 +3,7 @@
 Home Assistant integration that turns the aircraft your own ADS-B receiver hears, and optionally those adsb.fi's
 community network knows, into map feeds, with sensors for the receiver's health.
 
-[![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![HACS][hacs-shield]][hacs] [![License][license-shield]](LICENSE)
+[![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![Marketplace][marketplace-shield]][marketplace] [![License][license-shield]](LICENSE)
 
 <img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-light.png#gh-light-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, the nearest aircraft as a tile, and the receiver's state on the receiver card with its day of aircraft tracked">
 <img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-dark.png#gh-dark-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, the nearest aircraft as a tile, and the receiver's state on the receiver card with its day of aircraft tracked">
@@ -30,10 +30,10 @@ the same area, from the receivers of its community, so the map shows the traffic
 
 ## Installation
 
-### With HACS
+### With the Marketplace
 
-1. Add this repository to HACS custom repositories with type **Integration**
-2. Search for ADS-B Live in HACS and download it
+1. Open Settings › Marketplace, choose Add from link and paste `https://github.com/jesmak/adsb_live`
+2. Open ADS-B Live in the Marketplace and choose Install
 3. Restart Home Assistant
 4. Add the integration in Settings › Devices & services, then add feeds from its page
 
@@ -401,8 +401,8 @@ Device ids are easiest to pick in the card's visual editor.
 ## Upgrading from the separate ADS-B receiver card
 
 The receiver card used to be a repository of its own, ADS-B receiver card. It now comes with the integration, and the
-separate repository has been removed. If you installed it, remove it in HACS, and check that its resource
-(`/hacsfiles/adsb-receiver-card/…`) is gone from Settings › Dashboards › Resources. Until it is, the log warns about it
+separate repository has been removed. If you installed it, remove it in the Marketplace, and check that its resource
+(`/local/community/adsb-receiver-card/…`) is gone from Settings › Dashboards › Resources. Until it is, the log warns about it
 at every start, the card picker may list the card twice, and the browser's console may show an error from the separate
 card. Your dashboards need no changes, as the card's type stays `custom:adsb-receiver-card`.
 
@@ -515,6 +515,6 @@ MIT, see [LICENSE](LICENSE).
 [releases-shield]: https://img.shields.io/github/release/jesmak/adsb_live.svg?style=for-the-badge
 [release-date-shield]: https://img.shields.io/github/release-date/jesmak/adsb_live?style=for-the-badge
 [releases]: https://github.com/jesmak/adsb_live/releases
-[hacs-shield]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
-[hacs]: https://hacs.xyz/docs/faq/custom_repositories/
+[marketplace-shield]: https://img.shields.io/badge/Marketplace-Custom-orange.svg?style=for-the-badge
+[marketplace]: https://my.home-assistant.io/redirect/marketplace_repository/?owner=jesmak&repository=adsb_live&category=integration
 [license-shield]: https://img.shields.io/github/license/jesmak/adsb_live.svg?style=for-the-badge
