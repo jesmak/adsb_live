@@ -6,7 +6,7 @@
 import { PLATFORM } from "./const";
 import type { HomeAssistant } from "./hass";
 
-export const RECEIVER_AIRCRAFT_SERVICE = "get_receiver_aircraft";
+const RECEIVER_AIRCRAFT_SERVICE = "get_receiver_aircraft";
 
 /** An aircraft as the action gives it. Fields readsb doesn't know are left out. */
 export interface HeardAircraft {

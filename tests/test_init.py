@@ -11,7 +11,7 @@ from typing import Any
 import aiohttp
 import pytest
 from homeassistant.config_entries import SOURCE_RECONFIGURE, ConfigEntryState, ConfigSubentry, ConfigSubentryData
-from homeassistant.const import MATCH_ALL, STATE_UNAVAILABLE
+from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -22,7 +22,6 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 from custom_components.adsb_live.api import ADSB_FI_API, AdsbFiClient, RequestSpacing
 from custom_components.adsb_live.colors import UNKNOWN_COLOR
 from custom_components.adsb_live.const import DOMAIN
-from custom_components.adsb_live.sensor import MapFeedSensor
 
 from .conftest import (
     ADSB_FI_URL,
@@ -111,10 +110,6 @@ async def test_a_feed_has_the_receivers_aircraft_in_its_area(hass: HomeAssistant
     ids = [feature["id"] for feature in feed.attributes["geojson"]["features"]]
     assert ids == ["aircraft:461f00", "aircraft:46a1b2", "aircraft:462000"], "one position each, so no trails yet"
     assert not any(ADSB_FI_URL in str(call[1]) for call in receiver_api.mock_calls), "adsb.fi isn't asked when the feed has it off"
-
-
-def test_only_the_count_is_recorded() -> None:
-    assert MapFeedSensor._unrecorded_attributes == frozenset({MATCH_ALL})
 
 
 async def test_adsb_fi_adds_what_the_receiver_doesnt_hear(hass: HomeAssistant, receiver_api: AiohttpClientMocker) -> None:

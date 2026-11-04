@@ -16,7 +16,7 @@ export interface EntityRegistryEntry {
     display_precision?: number;
 }
 
-export interface DeviceRegistryEntry {
+interface DeviceRegistryEntry {
     id: string;
     name?: string | null;
     name_by_user?: string | null;
