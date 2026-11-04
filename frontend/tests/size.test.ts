@@ -1,3 +1,4 @@
+import type { CSSResult, CSSResultGroup } from "lit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import "../src/adsb-receiver-card";
@@ -298,8 +299,13 @@ describe("the texts a card may cut short", () => {
     }
 
     it.each([
-        ["the full layout, held", { grid_options: { rows: 6 } }, "aircraft", [...FIXED, ".plane .id", ".plane .sub", ".plane-head span"]],
-        ["the full layout, not held", {}, "aircraft", [...FIXED, ".plane .id", ".plane .sub", ".plane-head span"]],
+        [
+            "the full layout, held",
+            { grid_options: { rows: 6 } },
+            "aircraft",
+            [...FIXED, ".plane .ident", ".plane .sub", ".plane-head span"],
+        ],
+        ["the full layout, not held", {}, "aircraft", [...FIXED, ".plane .ident", ".plane .sub", ".plane-head span"]],
         ["the full layout's feeders", {}, "feeders", [...FIXED, ".tab .label", ".feeder-name", ".feeder-value"]],
         ["the full layout's empty list", {}, "empty", [...FIXED, ".pane .message"]],
         ["the full layout's failed list", {}, "failed", [...FIXED, ".pane .message"]],
@@ -331,6 +337,32 @@ describe("the texts a card may cut short", () => {
             }
         },
     );
+
+    // The texts a held card keeps to one line are named in its styles only, so a class renamed in the markup would let
+    // them wrap again without anything else failing.
+    it("keep to one line held by selectors that match the markup", async () => {
+        const flat = (group: CSSResultGroup): CSSResult[] => (Array.isArray(group) ? group.flatMap(flat) : [group as CSSResult]);
+        const css = flat((customElements.get("adsb-receiver-card") as unknown as { styles: CSSResultGroup }).styles)
+            .map((style) => style.cssText)
+            .join("\n");
+        const selectors = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+            .filter(([, , body]) => body.includes("text-overflow: ellipsis"))
+            .flatMap(([, list]) => list.split(","))
+            .map((selector) => selector.trim())
+            .filter((selector) => selector.startsWith("ha-card.held"));
+        expect(selectors.length).toBeGreaterThan(5);
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+        const cards = await Promise.all(
+            (["aircraft", "feeders", "empty"] as Pane[]).map((pane) => withPanes({ grid_options: { rows: 6 } }, pane)),
+        );
+        warn.mockRestore();
+        for (const selector of selectors) {
+            expect(
+                cards.some((element) => element.shadowRoot!.querySelector(selector)),
+                selector,
+            ).toBe(true);
+        }
+    });
 });
 
 describe("the editor in the compact layout", () => {

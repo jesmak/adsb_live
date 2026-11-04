@@ -57,7 +57,7 @@ const TABS_PX = 32;
  * figures and the curve two half-row steps each, the meter and the tabs one each) and three steps of the pane, the column
  * heads and two aircraft or three feeders, 376 px, six rows of a sections view. A card without feeders has no tabs, and
  * three aircraft in the same six rows. Below 160 the curve's caption wraps, which only a card narrower than its 9
- * columns allow (in a stack, or by a theme) is. Measured held from 140 px up both ways.
+ * columns allow is (in a stack, or by a theme). Measured held from 140 px up both ways.
  */
 const LEAST_PX: [number, number][] = [
     [160, 376],
@@ -381,7 +381,8 @@ export class AdsbReceiverCard extends LitElement {
                             ${version ? html`<span class="version" title=${version}>${version}</span>` : nothing}
                         </div>
                         <div class="line" title=${line.join(" · ")}>
-                            <span class="status">${statusText}</span>${line.slice(1).map((part) => html` · ${part}`)}
+                            <span class="status">${statusText}</span
+                            >${line.slice(1).map((part) => html` · <span class="piece">${part}</span>`)}
                         </div>
                     </div>
                 </div>
@@ -559,9 +560,11 @@ export class AdsbReceiverCard extends LitElement {
         ].filter(Boolean);
         return html`
             <div class="plane ${plane.position ? "" : "nopos"}">
-                <span class="id" title=${[plane.name, plane.type].filter(Boolean).join(" ")}
-                    ><span class="callsign">${plane.name}</span
-                    >${plane.type ? html` <span class="type">${plane.type}</span>` : nothing}<ha-icon
+                <span class="id"
+                    ><span class="ident" title=${[plane.name, plane.type].filter(Boolean).join(" ")}
+                        ><span class="callsign">${plane.name}</span
+                        >${plane.type ? html` <span class="type">${plane.type}</span>` : nothing}</span
+                    ><ha-icon
                         class="position"
                         icon=${plane.position ? "mdi:crosshairs-gps" : "mdi:crosshairs-question"}
                         role="img"
@@ -569,7 +572,9 @@ export class AdsbReceiverCard extends LitElement {
                         title=${position}
                     ></ha-icon
                 ></span>
-                <span class="sub" title=${sub.join(" · ")}>${sub.join(" · ")}</span>
+                <span class="sub" title=${sub.join(" · ")}
+                    >${sub.map((part, index) => html`${index ? " · " : ""}<span class="piece">${part}</span>`)}</span
+                >
                 <span class="altitude">${altitude}</span>
                 <span class="signal"
                     >${plane.rssi === undefined ? nothing : html`<i style="width: ${Number(meterPlace(plane.rssi).toFixed(1))}%"></i>`}</span
@@ -918,8 +923,10 @@ export class AdsbReceiverCard extends LitElement {
                  * The full layout's parts step in half rows of a sections view, 32 px, so that with its 24 px of padding and
                  * border the card is 32k − 8 px tall and fills whole or half rows exactly: the top, the figures and the curve
                  * two steps each, the meter and the tabs one each, and in the pane each aircraft and each feeder a step, and the
-                 * column heads with the room under the last aircraft one more. The texts keep to one line, cut short with their
-                 * whole text as a tooltip.
+                 * column heads with the room under the last aircraft one more. Held to a height, the texts keep to one line, cut
+                 * short with their whole text as a tooltip, so the card's height depends only on its width. Otherwise they wrap:
+                 * the pane's message a half row a line, and the other texts at their own line heights, which fillRows still ends
+                 * on the rows.
                  */
                 .full {
                     display: flex;
@@ -931,21 +938,33 @@ export class AdsbReceiverCard extends LitElement {
                     flex: none;
                 }
 
-                .name,
+                /* The labels keep to one line at any height, as on a narrow card they take short names instead. */
                 .version,
-                .line,
-                .figure .label,
                 .tab .label,
                 .levels button,
-                .feeder-name,
-                .feeder-value,
-                .plane .id,
-                .plane .sub,
                 .plane-head span,
-                .pane .message {
+                ha-card.held .name,
+                ha-card.held .line,
+                ha-card.held .figure .label,
+                ha-card.held .feeder-name,
+                ha-card.held .feeder-value,
+                ha-card.held .plane .ident,
+                ha-card.held .plane .sub,
+                ha-card.held .pane .message {
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
+                }
+
+                .name,
+                .line,
+                .figure .label,
+                .feeder-name,
+                .feeder-value,
+                .plane .ident,
+                .plane .sub,
+                .pane .message {
+                    overflow-wrap: anywhere;
                 }
 
                 /* What the rows leave over goes under the top, as padding, which no neighbour's margin can swallow. */
@@ -953,7 +972,7 @@ export class AdsbReceiverCard extends LitElement {
                     display: flex;
                     align-items: center;
                     gap: 12px;
-                    height: 64px;
+                    min-height: 64px;
                     padding-bottom: var(--spare, 0px);
                 }
 
@@ -996,19 +1015,21 @@ export class AdsbReceiverCard extends LitElement {
 
                 .line {
                     font-size: 12px;
+                    line-height: 15px;
                     color: var(--secondary-text-color);
                 }
 
                 .status {
                     font-size: 13px;
                     color: var(--receiver-color);
+                    white-space: nowrap;
                 }
 
                 .figures {
                     display: grid;
                     grid-template-columns: repeat(3, minmax(0, 1fr));
                     align-items: center;
-                    height: 64px;
+                    min-height: 64px;
                     text-align: center;
                 }
 
@@ -1041,6 +1062,7 @@ export class AdsbReceiverCard extends LitElement {
                 .figure .label {
                     max-width: 100%;
                     font-size: 12px;
+                    line-height: 15px;
                     color: var(--secondary-text-color);
                 }
 
@@ -1271,9 +1293,8 @@ export class AdsbReceiverCard extends LitElement {
                 }
 
                 .pane .message {
-                    padding: 4px 0;
                     font-size: 13px;
-                    line-height: 24px;
+                    line-height: 32px;
                     color: var(--secondary-text-color);
                 }
 
@@ -1318,30 +1339,41 @@ export class AdsbReceiverCard extends LitElement {
                     box-shadow: inset 0 1px var(--divider-color);
                 }
 
-                /* Half a row each, its two lines cut short rather than wrapped, so two aircraft fill a row. */
+                /* Half a row each, so two aircraft fill a row, unless a text wraps. */
                 .plane {
                     grid-template-areas: "id altitude signal" "sub altitude signal";
                     padding-top: 2px;
                     font-size: 13px;
                 }
 
-                /* A fixed height, as the position icon would stretch the line box a pixel past the step. */
+                /* The position icon beside the callsign and type rather than after them, so it is never what gets cut. */
                 .plane .id {
                     grid-area: id;
-                    height: 16px;
+                    display: flex;
+                    align-items: flex-start;
+                    min-width: 0;
                     line-height: 16px;
+                }
+
+                .plane .ident {
+                    min-width: 0;
                 }
 
                 .plane .callsign {
                     font-weight: 500;
                 }
 
-                /* Whether the aircraft's position is known, after its type, centred on the capitals the callsigns and types are. */
+                /*
+                 * Whether the aircraft's position is known, after its type, centred on the capitals the callsigns and types
+                 * are. A flex box of its own, as otherwise it takes the line's height and stretches the row a pixel past the
+                 * step.
+                 */
                 .plane .position {
+                    display: flex;
+                    flex: none;
                     --mdc-icon-size: 14px;
-                    margin-left: 4px;
+                    margin: 1px 0 0 4px;
                     color: var(--secondary-text-color);
-                    vertical-align: 1px;
                 }
 
                 .plane .type {
@@ -1387,14 +1419,18 @@ export class AdsbReceiverCard extends LitElement {
                     color: var(--secondary-text-color);
                 }
 
-                /* A feeder is a step, its name kept before its value is cut. */
+                /* A feeder is a step, which a name or value that wraps leaves at its own line height, as a value 32 px a
+                   line reads as two feeders. Held, its name is kept before its value is cut. */
                 .feeder {
                     display: flex;
                     align-items: center;
                     gap: 10px;
+                    box-sizing: border-box;
                     width: 100%;
-                    height: 32px;
+                    min-height: 32px;
+                    padding: 4px 0;
                     font-size: 13px;
+                    line-height: 16px;
                 }
 
                 .feeder .dot {
@@ -1448,8 +1484,6 @@ export class AdsbReceiverCard extends LitElement {
 
                 .compact .name {
                     font-size: 14px;
-                    white-space: normal;
-                    overflow-wrap: anywhere;
                 }
 
                 .compact .status {
@@ -1458,17 +1492,9 @@ export class AdsbReceiverCard extends LitElement {
 
                 .compact .line {
                     line-height: 16px;
-                    white-space: normal;
-                    overflow-wrap: anywhere;
                 }
 
                 .piece {
-                    white-space: nowrap;
-                }
-
-                /* Held, the compact layout's two lines keep to one line each, so it is one row at any width. */
-                ha-card.compact.held .name,
-                ha-card.compact.held .line {
                     white-space: nowrap;
                 }
 

@@ -298,12 +298,13 @@ second, with the curve on the right. Clicking it opens the aircraft tracked sens
 ### Sizes
 
 In a sections view the card takes a whole section by default and can be made as narrow as three quarters of one. Its
-texts keep to one line each, cut short where they don't fit, with the whole text as a tooltip. On a narrow card the
+texts wrap where they don't fit. Held to a height, they keep to one line each instead, cut short with the whole text as
+a tooltip, so the card's height depends only on its width. On a narrow card the
 readsb version is left out, and the meter, and the aircraft's tab when there are tabs, use short names. In the compact
 layout the curve is left out below 280 px, so the texts keep their room.
 
 The full layout's parts are each one or two half rows of a sections view tall, an aircraft and a feeder half a row, so
-the card fills rows exactly. On automatic rows in a sections view the card ends on whole rows, with any room left over
+the card fills rows exactly while nothing wraps. On automatic rows in a sections view the card ends on whole rows, with any room left over
 under the receiver's name, so the cards under it stay on the rows. With `row_step: half` it ends on half rows instead.
 With `max_height`, it grows the same way up to that height rounded down to its rows, so it stays on the rows when it
 reaches it too. The compact layout is one row on a full section.
@@ -316,8 +317,8 @@ sections view, which hold everything above them with the column heads and two ai
 tabs. Without feeders, and so without tabs, the same six rows hold three aircraft. Held to rows, the compact layout is
 one row at any width.
 
-<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-quiet-narrow-light.png#gh-light-mode-only" width="260" alt="A quiet receiver on a narrow card, tracking one aircraft without a position, its rates and figure labels cut short and the meter's names shortened, with Flightradar24 disconnected, so the feeders' tab is shown first with a red dot">
-<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-quiet-narrow-dark.png#gh-dark-mode-only" width="260" alt="A quiet receiver on a narrow card, tracking one aircraft without a position, its rates and figure labels cut short and the meter's names shortened, with Flightradar24 disconnected, so the feeders' tab is shown first with a red dot">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-quiet-narrow-light.png#gh-light-mode-only" width="260" alt="A quiet receiver on a narrow card, tracking one aircraft without a position, its rates and figure labels wrapped and the meter's names shortened, with Flightradar24 disconnected, so the feeders' tab is shown first with a red dot">
+<img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/receiver-quiet-narrow-dark.png#gh-dark-mode-only" width="260" alt="A quiet receiver on a narrow card, tracking one aircraft without a position, its rates and figure labels wrapped and the meter's names shortened, with Flightradar24 disconnected, so the feeders' tab is shown first with a red dot">
 
 ## Examples
 
