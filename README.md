@@ -32,8 +32,8 @@ the same area, from the receivers of its community, so the map shows the traffic
 
 ### With the Marketplace
 
-1. Open Settings › Marketplace, choose Add from link and paste `https://github.com/jesmak/adsb_live`
-2. Open ADS-B Live in the Marketplace and choose Install
+1. Open Settings › Marketplace and search for ADS-B Live
+2. Open it and choose Install
 3. Restart Home Assistant
 4. Add the integration in Settings › Devices & services, then add feeds from its page
 
@@ -515,6 +515,6 @@ MIT, see [LICENSE](LICENSE).
 [releases-shield]: https://img.shields.io/github/release/jesmak/adsb_live.svg?style=for-the-badge
 [release-date-shield]: https://img.shields.io/github/release-date/jesmak/adsb_live?style=for-the-badge
 [releases]: https://github.com/jesmak/adsb_live/releases
-[marketplace-shield]: https://img.shields.io/badge/Marketplace-Custom-orange.svg?style=for-the-badge
+[marketplace-shield]: https://img.shields.io/badge/Marketplace-Default-green.svg?style=for-the-badge
 [marketplace]: https://my.home-assistant.io/redirect/marketplace_repository/?owner=jesmak&repository=adsb_live&category=integration
 [license-shield]: https://img.shields.io/github/license/jesmak/adsb_live.svg?style=for-the-badge
