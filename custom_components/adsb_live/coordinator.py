@@ -75,6 +75,29 @@ def check_written_lately(data: dict[str, Any], max_age_seconds: float, name: str
         raise UpdateFailed(f"The receiver's {name} was last written {round(age)} s ago, so readsb may have stopped")
 
 
+def event_data(plane: Aircraft, distance_km: float, unit: str) -> dict[str, Any]:
+    """What an event tells about its aircraft, the altitude in `unit`, the receiver's "m" or "ft"."""
+    data = plane.data
+    altitude = plane.altitude_ft
+    if altitude is not None and unit == "m":
+        altitude = round(altitude * METRES_PER_FOOT)
+    values = {
+        "hex": plane.hex,
+        "name": aircraft_name(plane),
+        "callsign": plane.callsign,
+        "registration": data.get("r"),
+        "type": data.get("t"),
+        "squawk": data.get("squawk"),
+        "military": is_military(plane),
+        "distance_km": round(distance_km, 1),
+        "altitude": altitude,
+        "heading": heading(plane),
+        "latitude": plane.latitude,
+        "longitude": plane.longitude,
+    }
+    return {key: value for key, value in values.items() if value not in (None, "")}
+
+
 @dataclass(frozen=True)
 class Receiver:
     url: str
@@ -132,7 +155,8 @@ class StatsCoordinator(DataUpdateCoordinator[dict[str, float | None]]):
 class ReceiverAircraft:
     """The receiver's own aircraft for its list, read from aircraft.json when asked, as the action get_receiver_aircraft answers."""
 
-    def __init__(self, client: ReceiverClient, url: str, unit: str) -> None:
+    def __init__(self, hass: HomeAssistant, client: ReceiverClient, url: str, unit: str) -> None:
+        self._hass = hass
         self._client = client
         self._url = url
         self._unit = unit
@@ -147,7 +171,8 @@ class ReceiverAircraft:
                 return self._answer
             data = await self._client.aircraft(self._url)
             check_written_lately(data, AIRCRAFT_MAX_AGE_SECONDS, "aircraft.json")
-            self._answer = {"aircraft": heard_aircraft(data, self._unit), "altitude_unit": self._unit}
+            heard = await self._hass.async_add_executor_job(heard_aircraft, data, self._unit)
+            self._answer = {"aircraft": heard, "altitude_unit": self._unit}
             # From the answer, so that a call waiting behind a slow read gets that read's answer.
             self._read_at = monotonic()
             return self._answer
@@ -159,7 +184,8 @@ class TypeKinds:
     Without the table, as without tar1090, there are none, and every aircraft has its category's kind.
     """
 
-    def __init__(self, client: ReceiverClient, url: str) -> None:
+    def __init__(self, hass: HomeAssistant, client: ReceiverClient, url: str) -> None:
+        self._hass = hass
         self._client = client
         self._url = url
         self._lock = asyncio.Lock()
@@ -170,7 +196,8 @@ class TypeKinds:
         async with self._lock:
             if monotonic() >= self._next_read:
                 try:
-                    self._kinds = type_kinds(await self._client.type_table(self._url))
+                    table = await self._client.type_table(self._url)
+                    self._kinds = await self._hass.async_add_executor_job(type_kinds, table)
                     self._next_read = monotonic() + TYPES_REFRESH_SECONDS
                 except AdsbError as err:
                     _LOGGER.debug("No table of aircraft types from the receiver: %s", err)
@@ -232,17 +259,27 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
 
     async def _async_update_data(self) -> FeedData:
         runtime = self.runtime
-        config = self.feed_config
         try:
             data = await runtime.receiver_client.aircraft(runtime.receiver.url)
-            check_written_lately(data, AIRCRAFT_MAX_AGE_SECONDS, "aircraft.json")
-            # A file that isn't readsb's aircraft list makes the feed unavailable, like a failed request.
+        except AdsbError as err:
+            raise UpdateFailed(str(err)) from err
+        check_written_lately(data, AIRCRAFT_MAX_AGE_SECONDS, "aircraft.json")
+        remote = await self._adsb_fi(runtime.adsb_fi) if self.feed_config.adsb_fi else None
+        types = await runtime.types.get()
+        # A busy area's aircraft take a tenth of a second or more to build, too long for the event loop. The coordinator
+        # runs one update at a time, so the positions, trails and events kept between updates aren't changed by two at once.
+        return await self.hass.async_add_executor_job(self._feed_data, runtime, data, remote, types)
+
+    def _feed_data(self, runtime: AdsbRuntimeData, data: dict[str, Any], remote: dict[str, Any] | None, types: dict[str, str]) -> FeedData:
+        config = self.feed_config
+        try:
             local = parse_aircraft(data)
-        except (AdsbError, ValueError) as err:
+        except ValueError as err:
+            # A file that isn't readsb's aircraft list makes the feed unavailable, like a failed request.
             raise UpdateFailed(str(err)) from err
 
         # The receiver's own first, so that it wins over adsb.fi when both have a believable position.
-        candidates = [*local, *await self._adsb_fi(runtime.adsb_fi)] if config.adsb_fi else local
+        candidates = [*local, *self._adsb_fi_aircraft(remote)] if remote is not None else local
         # Before the area, so that a false position doesn't take one of the receiver's own aircraft out of it. adsb.fi's
         # answer has only what it places within the area, false or not.
         aircraft = in_area(self._positions.check(candidates), config.area)
@@ -253,7 +290,6 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
             trails = self._trails
         distance_from = runtime.receiver.position or (config.area.latitude, config.area.longitude)
         measured = measure(aircraft, distance_from)
-        types = await runtime.types.get()
         return FeedData(
             build_features(
                 measured, trails, runtime.texts, runtime.altitude_unit, config.color_by_altitude, self.subentry.subentry_id, types
@@ -263,10 +299,10 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
             any(plane.altitude_ft is None for plane in aircraft),
             aircraft={plane.hex: (distance_km, plane) for distance_km, plane in measured},
             nearest=next(((distance_km, plane) for distance_km, plane in measured if not plane.on_ground), None),
-            events=self._new_events(measured, now.timestamp()),
+            events=self._new_events(measured, now.timestamp(), runtime.altitude_unit),
         )
 
-    def _new_events(self, measured: list[tuple[float, Aircraft]], now: float) -> list[AircraftEvent]:
+    def _new_events(self, measured: list[tuple[float, Aircraft]], now: float, unit: str) -> list[AircraftEvent]:
         """The aircraft that entered each event's state since they were last in it, nearest first."""
         # The gap is measured from the last update that saw the aircraft in the state, and updates come a whole
         # interval apart: one missed update is a gap of two intervals, two missed ones three. The limit is the whole
@@ -286,7 +322,7 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
                 # Checked here, not only by the pruning below, which runs only when an update succeeds.
                 last = self._in_state[event_type].get(plane.hex)
                 if last is None or now - last > rearm:
-                    events.append(AircraftEvent(event_type, self.event_data(plane, distance_km)))
+                    events.append(AircraftEvent(event_type, event_data(plane, distance_km, unit)))
                 self._in_state[event_type][plane.hex] = now
         # Forgetting what is old enough to fire again keeps the memory to the aircraft seen lately.
         for seen in self._in_state.values():
@@ -294,30 +330,8 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
                 del seen[hex_code]
         return events
 
-    def event_data(self, plane: Aircraft, distance_km: float) -> dict[str, Any]:
-        """What an event tells about its aircraft, the altitude in the receiver's unit."""
-        data = plane.data
-        altitude = plane.altitude_ft
-        if altitude is not None and self.runtime.altitude_unit == "m":
-            altitude = round(altitude * METRES_PER_FOOT)
-        values = {
-            "hex": plane.hex,
-            "name": aircraft_name(plane),
-            "callsign": plane.callsign,
-            "registration": data.get("r"),
-            "type": data.get("t"),
-            "squawk": data.get("squawk"),
-            "military": is_military(plane),
-            "distance_km": round(distance_km, 1),
-            "altitude": altitude,
-            "heading": heading(plane),
-            "latitude": plane.latitude,
-            "longitude": plane.longitude,
-        }
-        return {key: value for key, value in values.items() if value not in (None, "")}
-
-    async def _adsb_fi(self, client: AdsbFiClient) -> list[Aircraft]:
-        """adsb.fi's aircraft in the area. A failure only leaves them out: the receiver's own still show.
+    async def _adsb_fi(self, client: AdsbFiClient) -> dict[str, Any] | None:
+        """adsb.fi's answer for the area, or None when it fails. A failure only leaves its aircraft out: the receiver's own still show.
 
         The client comes from the runtime read before the update's first wait. A refresh asked for outside
         the schedule, such as with homeassistant.update_entity, isn't cancelled when the entry unloads, and
@@ -325,14 +339,25 @@ class FeedCoordinator(DataUpdateCoordinator[FeedData]):
         """
         area = self.feed_config.area
         try:
-            aircraft = parse_aircraft(await client.aircraft_near(area.latitude, area.longitude, area.radius_km), remote=True)
-        except (AdsbError, ValueError) as err:
-            # A warning when the feed's outage starts, so a lasting one shows in the log without filling it.
-            log = _LOGGER.debug if self._adsb_fi_failing else _LOGGER.warning
-            log("Fetching aircraft from adsb.fi for %s failed, showing the receiver's own: %s", self.subentry.title, err)
-            self._adsb_fi_failing = True
+            return await client.aircraft_near(area.latitude, area.longitude, area.radius_km)
+        except AdsbError as err:
+            self._adsb_fi_failed(err)
+            return None
+
+    def _adsb_fi_aircraft(self, data: dict[str, Any]) -> list[Aircraft]:
+        """The aircraft in adsb.fi's answer. An answer that isn't an aircraft list counts as a failure."""
+        try:
+            aircraft = parse_aircraft(data, remote=True)
+        except ValueError as err:
+            self._adsb_fi_failed(err)
             return []
         if self._adsb_fi_failing:
             _LOGGER.info("Fetching aircraft from adsb.fi for %s works again", self.subentry.title)
             self._adsb_fi_failing = False
         return aircraft
+
+    def _adsb_fi_failed(self, err: Exception) -> None:
+        # A warning when the feed's outage starts, so a lasting one shows in the log without filling it.
+        log = _LOGGER.debug if self._adsb_fi_failing else _LOGGER.warning
+        log("Fetching aircraft from adsb.fi for %s failed, showing the receiver's own: %s", self.subentry.title, err)
+        self._adsb_fi_failing = True

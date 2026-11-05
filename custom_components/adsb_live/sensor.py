@@ -19,7 +19,7 @@ from .aircraft import aircraft_name
 from .api import without_login
 from .colors import legend
 from .const import ADSB_FI_ATTRIBUTION, ADSB_FI_ATTRIBUTION_URL, DOMAIN, MAP_FEED_VERSION
-from .coordinator import AdsbConfigEntry, FeedCoordinator, StatsCoordinator
+from .coordinator import AdsbConfigEntry, FeedCoordinator, StatsCoordinator, event_data
 
 # The keys are those of health.receiver_health().
 HEALTH_SENSORS = (
@@ -188,4 +188,4 @@ class NearestAircraftSensor(CoordinatorEntity[FeedCoordinator], SensorEntity):
         if not data or not data.nearest:
             return {}
         distance_km, plane = data.nearest
-        return self.coordinator.event_data(plane, distance_km)
+        return event_data(plane, distance_km, self.coordinator.runtime.altitude_unit)

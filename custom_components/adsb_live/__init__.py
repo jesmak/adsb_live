@@ -66,8 +66,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
         texts=await async_load_texts(hass, entry.data[CONF_LANGUAGE]),
         altitude_unit=altitude_unit,
         stats=StatsCoordinator(hass, entry, client, url),
-        heard=ReceiverAircraft(client, url, altitude_unit),
-        types=TypeKinds(client, url),
+        heard=ReceiverAircraft(hass, client, url, altitude_unit),
+        types=TypeKinds(hass, client, url),
     )
     for subentry in entry.subentries.values():
         entry.runtime_data.feeds[subentry.subentry_id] = FeedCoordinator(hass, entry, subentry)

@@ -482,15 +482,28 @@ async def test_adsb_fi_is_never_asked_for_more_than_250_nautical_miles(hass: Hom
     assert [str(call[1]) for call in aioclient_mock.mock_calls] == [widest]
 
 
-async def test_a_broken_aircraft_list_from_adsb_fi_leaves_the_receivers_aircraft(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+async def test_a_broken_aircraft_list_from_adsb_fi_leaves_the_receivers_aircraft_and_is_logged_as_a_failure(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, caplog: pytest.LogCaptureFixture
 ) -> None:
     mock_receiver(aioclient_mock)
     aioclient_mock.get(ADSB_FI_URL, json={"now": time.time() * 1000, "ac": "nothing"})
     entry = receiver_entry(hass, adsb_fi=True)
+    caplog.set_level(logging.DEBUG, logger="custom_components.adsb_live")
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert hass.states.get("sensor.aircraft_near_tampere").state == "3"
+
+    feed = next(iter(entry.runtime_data.feeds.values()))
+    await feed.async_refresh()
+    aioclient_mock.clear_requests()
+    mock_receiver(aioclient_mock)
+    aioclient_mock.get(ADSB_FI_URL, json=adsb_fi_aircraft())
+    await feed.async_refresh()
+    await hass.async_block_till_done()
+
+    broken = "Fetching aircraft from adsb.fi for Aircraft near Tampere failed, showing the receiver's own: The aircraft list isn't a list"
+    assert adsb_fi_log(caplog) == [("WARNING", broken), ("DEBUG", broken), ("INFO", works_again("Aircraft near Tampere"))]
+    assert hass.states.get("sensor.aircraft_near_tampere").state == "4"
 
 
 async def test_a_broken_aircraft_list_from_the_receiver_makes_the_feed_unavailable(
