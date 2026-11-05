@@ -273,6 +273,12 @@ describe("adsb-receiver-card", () => {
             const element = await card(hass({}, FEEDERS), { feeders: [{ entity, detail }] });
             expect(text((await feeders(element)).querySelector(".feeder"))).toBe(row);
         });
+
+        it("names a feeder without a name of its own as Home Assistant composes its entity's name", async () => {
+            const state = { ...hass({}, FEEDERS), formatEntityName: () => "FR24 Feeder Link" };
+            const element = await card(state, { feeders: [{ entity: "binary_sensor.fr24_link" }] });
+            expect(text((await feeders(element)).querySelector(".feeder"))).toBe("FR24 Feeder Link Yhdistetty");
+        });
     });
 
     it("says so when the device doesn't exist or isn't a receiver", async () => {

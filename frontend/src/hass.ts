@@ -37,6 +37,8 @@ export interface HomeAssistant {
     services?: Record<string, Record<string, unknown> | undefined>;
     /** A websocket command, such as a recorder query or an action with a response. */
     callWS?: <T>(message: Record<string, unknown>) => Promise<T>;
+    /** An entity's name composed from the parts asked for, present in Home Assistant 2025.10 and later. */
+    formatEntityName?: (entity: HassEntity, parts: { type: "entity" | "device" | "area" | "floor" }[]) => string;
 }
 
 export interface LovelaceCardConfig {

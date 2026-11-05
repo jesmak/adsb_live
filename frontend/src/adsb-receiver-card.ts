@@ -33,7 +33,7 @@ import {
     valueOf,
 } from "./receiver";
 import type { NumberFormat, Point, Status } from "./receiver";
-import { fillLimit, filledHeight, filledStyle, validRowStep } from "./rows";
+import { drawnScale, fillLimit, filledHeight, filledStyle, spareRoom, validRowStep } from "./rows";
 import type { AdsbReceiverCardConfig, FeederConfig } from "./types";
 
 interface CardRegistration {
@@ -247,8 +247,9 @@ export class AdsbReceiverCard extends LitElement {
         if (!card || !card.clientWidth) {
             return;
         }
-        // The card's whole width, border included, as the widths the columns give are.
-        const width = Math.round(card.getBoundingClientRect().width);
+        const scale = drawnScale(card);
+        // The card's whole width, border included, as the widths the columns give are, unscaled.
+        const width = Math.round(card.getBoundingClientRect().width / scale);
         if (width !== this.width) {
             this.width = width;
         }
@@ -268,17 +269,17 @@ export class AdsbReceiverCard extends LitElement {
             return;
         }
         const style = getComputedStyle(card);
+        // The drawn distance unscaled, as the margin, padding and border added to it are the layout's.
         let content =
-            last.getBoundingClientRect().bottom +
-            px(getComputedStyle(last).marginBottom) -
-            card.getBoundingClientRect().top +
+            (last.getBoundingClientRect().bottom - card.getBoundingClientRect().top) / scale +
+            px(getComputedStyle(last).marginBottom) +
             px(style.paddingBottom) +
             px(style.borderBottomWidth);
         // The spare room as drawn now.
         const top = card.querySelector<HTMLElement>(":scope > .top");
         content -= top ? px(getComputedStyle(top).paddingBottom) : 0;
-        const filled = filledHeight(Math.round(content), this.sizing(), limit);
-        const spare = Math.max(0, Math.floor(filled - content));
+        const filled = filledHeight(content, this.sizing(), limit);
+        const spare = spareRoom(filled, content);
         if (filled !== this.filled) {
             this.filled = filled;
         }
@@ -828,7 +829,11 @@ export class AdsbReceiverCard extends LitElement {
     private feeder(feeder: FeederConfig): TemplateResult {
         const entity = this.hass?.states[feeder.entity];
         const detail = feeder.detail ? this.hass?.states[feeder.detail] : undefined;
-        const name = feeder.name || (entity?.attributes.friendly_name as string | undefined) || feeder.entity;
+        const name =
+            feeder.name ||
+            (entity && this.hass?.formatEntityName?.(entity, [{ type: "device" }, { type: "entity" }])) ||
+            (entity?.attributes.friendly_name as string | undefined) ||
+            feeder.entity;
         const missing = (id: string) => this.text("common.no_entity", { entity: id });
         const parts = [entity ? this.formatState(entity) : missing(feeder.entity)];
         if (feeder.detail) {

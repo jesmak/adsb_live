@@ -23,19 +23,25 @@ function one(element: Element, selector: string): HTMLElement {
     return element.shadowRoot!.querySelector<HTMLElement>(selector)!;
 }
 
-// happy-dom lays nothing out, so each part is given the box it would have, measured from the card's top.
-function box(target: Element, top: number, bottom: number, width = 300): void {
-    target.getBoundingClientRect = () => ({ top, bottom, height: bottom - top, width }) as DOMRect;
+// happy-dom lays nothing out, so each part is given the box it would have, measured from the card's top, drawn at `scale`.
+function box(target: Element, top: number, bottom: number, width = 300, scale = 1): void {
+    target.getBoundingClientRect = () =>
+        ({ top: top * scale, bottom: bottom * scale, height: (bottom - top) * scale, width: width * scale }) as DOMRect;
 }
 
 /**
- * Gives the card its width and height and the full layout's parts their boxes, its pane ending at `end`, fills its rows and
- * returns its style.
+ * Gives the card its width and height and the full layout's parts their boxes, its pane ending at `end`, all drawn at
+ * `scale` as a dialog opening draws the card, fills its rows and returns its style.
  */
-async function filled(element: AdsbReceiverCard, end: number, width = 300, height = 56): Promise<string> {
+async function filled(element: AdsbReceiverCard, end: number, width = 300, height = 56, scale = 1): Promise<string> {
     const haCard = one(element, "ha-card");
     Object.defineProperty(haCard, "clientWidth", { value: width, configurable: true });
-    box(haCard, 0, height, width);
+    // The width it is laid out at, which a scale doesn't change.
+    const computed = window.getComputedStyle;
+    vi.spyOn(window, "getComputedStyle").mockImplementation((target, pseudo) =>
+        target === haCard ? ({ ...computed(target, pseudo), width: `${width}px` } as CSSStyleDeclaration) : computed(target, pseudo),
+    );
+    box(haCard, 0, height, width, scale);
     for (const [selector, top, bottom] of [
         [".top", 11, 75],
         [".figures", 75, 139],
@@ -46,10 +52,11 @@ async function filled(element: AdsbReceiverCard, end: number, width = 300, heigh
     ] as const) {
         const part = element.shadowRoot!.querySelector(selector);
         if (part) {
-            box(part, top, bottom, width);
+            box(part, top, bottom, width, scale);
         }
     }
     (element as unknown as { fillRows(): void }).fillRows();
+    vi.restoreAllMocks();
     await element.updateComplete;
     return one(element, "ha-card").getAttribute("style") ?? "";
 }
@@ -67,6 +74,16 @@ describe("filling the rows of a sections view", () => {
     ])("on automatic rows, ends on %s", async (_name, config, style) => {
         const element = await card(config, "grid");
         expect(await filled(element, 430)).toBe(style);
+    });
+
+    it("takes the next row for a content a fraction of a pixel over one", async () => {
+        const element = await card({}, "grid");
+        expect(await filled(element, 429.4)).toBe("min-height: 504px; --spare: 63px");
+    });
+
+    it("measures a card drawn scaled, as a dialog opening draws it, in the layout's pixels", async () => {
+        const element = await card({}, "grid");
+        expect(await filled(element, 430, 300, 56, 0.8)).toBe("min-height: 504px; --spare: 63px");
     });
 
     // The limit is rounded down to the rows: 600 px to 568. Held, the pane's end reaches 4 px into the card's padding, so
