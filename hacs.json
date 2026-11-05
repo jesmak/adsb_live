@@ -1,5 +1,7 @@
 {
   "name": "ADS-B Live",
   "render_readme": true,
+  "zip_release": true,
+  "filename": "adsb_live.zip",
   "homeassistant": "2026.9.3"
 }

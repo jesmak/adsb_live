@@ -3,7 +3,7 @@
 Home Assistant integration that turns the aircraft your own ADS-B receiver hears, and optionally those adsb.fi's
 community network knows, into map feeds, with sensors for the receiver's health.
 
-[![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![Marketplace][marketplace-shield]][marketplace] [![License][license-shield]](LICENSE)
+[![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![Downloads][downloads-shield]][releases] [![Marketplace][marketplace-shield]][marketplace] [![License][license-shield]](LICENSE)
 
 <img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-light.png#gh-light-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, the nearest aircraft as a tile, and the receiver's state on the receiver card with its day of aircraft tracked">
 <img src="https://raw.githubusercontent.com/jesmak/adsb_live/main/docs/images/dashboard-dark.png#gh-dark-mode-only" width="1280" alt="A dashboard around Tampere, with a map of ten aircraft drawn as silhouettes in their altitude's colours, with their trails, a legend of the altitudes, the list beside it with an airliner on approach opened to its details, the nearest aircraft as a tile, and the receiver's state on the receiver card with its day of aircraft tracked">
@@ -515,6 +515,7 @@ MIT, see [LICENSE](LICENSE).
 [releases-shield]: https://img.shields.io/github/release/jesmak/adsb_live.svg?style=for-the-badge
 [release-date-shield]: https://img.shields.io/github/release-date/jesmak/adsb_live?style=for-the-badge
 [releases]: https://github.com/jesmak/adsb_live/releases
+[downloads-shield]: https://img.shields.io/github/downloads/jesmak/adsb_live/total.svg?style=for-the-badge
 [marketplace-shield]: https://img.shields.io/badge/Marketplace-Default-green.svg?style=for-the-badge
 [marketplace]: https://my.home-assistant.io/redirect/marketplace_repository/?owner=jesmak&repository=adsb_live&category=integration
 [license-shield]: https://img.shields.io/github/license/jesmak/adsb_live.svg?style=for-the-badge
