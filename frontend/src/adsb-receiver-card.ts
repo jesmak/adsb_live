@@ -888,6 +888,8 @@ export class AdsbReceiverCard extends LitElement {
         return [
             css`
                 ha-card {
+                    /* ha-card's own transition covers every property, so a change in the rows filled would animate. */
+                    transition: none;
                     container-type: inline-size;
                     font-variant-numeric: tabular-nums;
                     --receiver-color: var(--secondary-text-color);

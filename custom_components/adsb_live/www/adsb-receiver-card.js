@@ -1,4 +1,4 @@
-/*! adsb-receiver-card 1.4.0 | MIT License */
+/*! adsb-receiver-card 1.4.1 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __decorateClass = (decorators, target, key, kind) => {
@@ -597,7 +597,7 @@ function r5(r6) {
 }
 
 // src/const.ts
-var CARD_VERSION = "1.4.0";
+var CARD_VERSION = "1.4.1";
 var PLATFORM = "adsb_live";
 var RECEIVER_MANUFACTURER = "readsb";
 var SENSORS = [
@@ -1976,6 +1976,8 @@ var AdsbReceiverCard = class extends i4 {
     return [
       i`
                 ha-card {
+                    /* ha-card's own transition covers every property, so a change in the rows filled would animate. */
+                    transition: none;
                     container-type: inline-size;
                     font-variant-numeric: tabular-nums;
                     --receiver-color: var(--secondary-text-color);
