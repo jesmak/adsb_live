@@ -151,7 +151,12 @@ Opening an aircraft on the map fetches its route and a photo, which the card sho
 
 With colours by altitude on, each aircraft has a `color` and the feed a `legend` of the ground and seven altitudes
 in the receiver's unit, and of the light grey for an unknown altitude while some aircraft has one. Metres from a
-kilometre up are written in kilometres there, to keep the legend short. A trail takes its aircraft's colour.
+kilometre up are written in kilometres there, to keep the legend short. A trail has the colours of the altitudes it was flown at, a colour for each position in
+steps of 500 ft, so a climbing aircraft's trail changes colour along the way. It needs map-feed-card 1.7.0 or newer.
+An older one draws the whole trail in its aircraft's colour.
+
+A trail fades out over the oldest fifth of its minutes, with or without the colours, so it doesn't stop short where
+they end. A trail shorter than that is drawn whole, as it begins where the aircraft was first heard.
 
 ### The nearest aircraft
 

@@ -50,6 +50,10 @@ LEVEL_RATE_FT_MIN = 100
 
 # Trails are simplified to what a map shows, as the map feed format suggests.
 TRAIL_TOLERANCE_KM = 0.02
+# A trail keeps a position wherever its altitude has changed this much, for the colour of the stretch flown there.
+TRAIL_ALTITUDE_STEP_FT = 500
+# A trail fades out over the oldest part of its minutes, this share of them.
+TRAIL_FADE_SHARE = 0.2
 
 # ADS-B emitter categories (DO-260B) as feed kinds. Category set C isn't aircraft and is left out: surface
 # vehicles and obstacles, fixed or tethered such as a balloon, and C0 without a subcategory.
@@ -352,35 +356,93 @@ def within_reach(distance_km: float, seconds: float) -> bool:
     return distance_km <= POSITION_MARGIN_KM + MAX_SPEED_KMH * abs(seconds) / 3600
 
 
+@dataclass(frozen=True)
+class TrailPoint:
+    time: float
+    longitude: float
+    latitude: float
+    altitude_ft: int | None
+    on_ground: bool
+
+
+@dataclass(frozen=True)
+class TrailLine:
+    """A trail as the feed has it: [longitude, latitude] positions, and a colour and an opacity for each when it has them."""
+
+    coordinates: list[list[float]]
+    colors: list[str] | None
+    opacities: list[float] | None
+
+
 @dataclass
 class Trails:
     """Where each aircraft has been in the last minutes, kept in memory between updates."""
 
-    points: dict[str, list[tuple[float, float, float]]] = field(default_factory=dict)
+    points: dict[str, list[TrailPoint]] = field(default_factory=dict)
+    # The time the trails' minutes end at, and how long before it a trail begins to fade, as of the last update.
+    cutoff: float = 0
+    fade_seconds: float = 0
 
     def update(self, aircraft: Iterable[Aircraft], now: float, minutes: int) -> None:
         for plane in aircraft:
             trail = self.points.setdefault(plane.hex, [])
-            if trail and plane.position_time > trail[-1][0]:
-                last_time, longitude, latitude = trail[-1]
+            if trail and plane.position_time > trail[-1].time:
+                last = trail[-1]
                 # A jump believed after its hold (see Positions) starts the trail anew rather than drawing it across the map.
-                if not within_reach(haversine_km(latitude, longitude, plane.latitude, plane.longitude), plane.position_time - last_time):
+                distance_km = haversine_km(last.latitude, last.longitude, plane.latitude, plane.longitude)
+                if not within_reach(distance_km, plane.position_time - last.time):
                     trail.clear()
-            if not trail or plane.position_time > trail[-1][0]:
-                trail.append((plane.position_time, plane.longitude, plane.latitude))
-        cutoff = now - minutes * 60
+            if not trail or plane.position_time > trail[-1].time:
+                trail.append(TrailPoint(plane.position_time, plane.longitude, plane.latitude, plane.altitude_ft, plane.on_ground))
+        self.cutoff = now - minutes * 60
+        self.fade_seconds = minutes * 60 * TRAIL_FADE_SHARE
         for hex_code in list(self.points):
-            kept = [point for point in self.points[hex_code] if point[0] >= cutoff]
+            kept = [point for point in self.points[hex_code] if point.time >= self.cutoff]
             if kept:
                 self.points[hex_code] = kept
             else:
                 del self.points[hex_code]
 
-    def line(self, hex_code: str) -> list[list[float]] | None:
-        """The trail as rounded [longitude, latitude] positions, or None when it has fewer than two."""
-        path = [round_position(lon, lat) for _, lon, lat in self.points.get(hex_code, [])]
-        path = [position for index, position in enumerate(path) if index == 0 or position != path[index - 1]]
-        return simplify_path(path, TRAIL_TOLERANCE_KM) if len(path) >= 2 else None
+    def line(self, hex_code: str, color_by_altitude: bool) -> TrailLine | None:
+        """The trail, simplified, or None when it has fewer than two positions.
+
+        Its oldest part fades out towards the end of the trail's minutes, so it has opacities once it reaches that far
+        back. With `color_by_altitude` each position has the colour of the altitude the aircraft was at there, in steps
+        of TRAIL_ALTITUDE_STEP_FT, so that level flight is one colour.
+        """
+        points: list[TrailPoint] = []
+        path: list[list[float]] = []
+        for point in self.points.get(hex_code, []):
+            position = round_position(point.longitude, point.latitude)
+            if not path or position != path[-1]:
+                points.append(point)
+                path.append(position)
+        if len(path) < 2:
+            return None
+        opacities = [round(min(1.0, max(0.0, (point.time - self.cutoff) / self.fade_seconds)), 2) for point in points]
+        # Where the fade ends, so that it doesn't stretch over a straight leg flown after it.
+        always = {index for index in range(1, len(points)) if opacities[index] == 1 and opacities[index - 1] < 1}
+        colors = []
+        if color_by_altitude:
+            step = points[0]
+            for index, point in enumerate(points):
+                if _altitude_differs(step, point):
+                    always.add(index)
+                    step = point
+                colors.append(altitude_color(step.altitude_ft, step.on_ground))
+        kept = simplify_path(path, TRAIL_TOLERANCE_KM, always)
+        return TrailLine(
+            [path[index] for index in kept],
+            [colors[index] for index in kept] if color_by_altitude else None,
+            [opacities[index] for index in kept] if opacities[0] < 1 else None,
+        )
+
+
+def _altitude_differs(a: TrailPoint, b: TrailPoint) -> bool:
+    """Whether two of a trail's points are far enough apart in altitude for colours of their own."""
+    if a.on_ground != b.on_ground or (a.altitude_ft is None) != (b.altitude_ft is None):
+        return True
+    return a.altitude_ft is not None and b.altitude_ft is not None and abs(a.altitude_ft - b.altitude_ft) >= TRAIL_ALTITUDE_STEP_FT
 
 
 # ---------------- feed features ----------------
@@ -496,20 +558,27 @@ def build_features(
     """Point features for the measured aircraft (see measure), in their order, each followed by its trail when it has one.
 
     Altitudes and vertical rates are written in `unit`, "m" or "ft". With `color_by_altitude`, each point has its
-    altitude's colour, which its trail takes too. Each point's details on tap name the feed by `feed_id`. An aircraft's
-    kind comes from its category or its type in `types` (see aircraft_kind).
+    altitude's colour. Its trail takes that too, through `point`, or has `colors` of its own when it was flown at
+    more altitudes than one (see Trails.line). Each point's details on tap name the feed by `feed_id`. An aircraft's kind
+    comes from its category or its type in `types` (see aircraft_kind).
     """
     features: list[dict[str, Any]] = []
     for distance_km, plane in measured:
         kind = aircraft_kind(plane, types)
-        features.append(point_feature(plane, distance_km, texts, unit, color_by_altitude, feed_id, kind))
-        if trails is not None and (line := trails.line(plane.hex)):
+        point = point_feature(plane, distance_km, texts, unit, color_by_altitude, feed_id, kind)
+        features.append(point)
+        if trails is not None and (line := trails.line(plane.hex, color_by_altitude)):
+            properties: dict[str, Any] = {"kind": kind, "point": plane.feature_id}
+            if line.colors and len(set(line.colors)) > 1:
+                properties["colors"] = line.colors
+            if line.opacities:
+                properties["opacities"] = line.opacities
             features.append(
                 {
                     "type": "Feature",
                     "id": f"{plane.feature_id}/trail",
-                    "geometry": {"type": "LineString", "coordinates": line},
-                    "properties": {"kind": kind, "point": plane.feature_id},
+                    "geometry": {"type": "LineString", "coordinates": line.coordinates},
+                    "properties": properties,
                 }
             )
     return features

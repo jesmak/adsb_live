@@ -11,6 +11,7 @@ import pytest
 from custom_components.adsb_live.aircraft import (
     Aircraft,
     Positions,
+    TrailLine,
     Trails,
     build_features,
     in_area,
@@ -344,17 +345,17 @@ def test_the_legend_is_in_the_receivers_unit_with_a_kilometre_and_up_in_kilometr
 def test_trails_follow_an_aircraft_and_end_with_its_minutes() -> None:
     trails = Trails()
     trails.update([plane("a", 1000, 24.00)], now=1000, minutes=5)
-    assert trails.line("a") is None, "one position isn't a line"
+    assert trails.line("a", False) is None, "one position isn't a line"
 
     trails.update([plane("a", 1015, 24.01)], now=1015, minutes=5)
     trails.update([plane("a", 1015, 24.01)], now=1030, minutes=5)
-    assert trails.line("a") == [[24.0, 61.5], [24.01, 61.5]], "a position isn't added twice"
+    assert trails.line("a", False) == TrailLine([[24.0, 61.5], [24.01, 61.5]], None, None), "a position isn't added twice"
     trails.update([plane("a", 1010, 24.005)], now=1030, minutes=5)
-    assert [point[0] for point in trails.points["a"]] == [1000, 1015], "nor an older one, such as a held aircraft's"
+    assert [point.time for point in trails.points["a"]] == [1000, 1015], "nor an older one, such as a held aircraft's"
 
     # Straight on: the middle point adds nothing to the line.
     trails.update([plane("a", 1030, 24.02)], now=1030, minutes=5)
-    assert trails.line("a") == [[24.0, 61.5], [24.02, 61.5]]
+    assert trails.line("a", False) == TrailLine([[24.0, 61.5], [24.02, 61.5]], None, None)
 
     features = build_features(measure([plane("a", 1030, 24.02)], RECEIVER_POSITION), trails, ENGLISH, "m", False, FEED_ID, {})
     assert features[1] == {
@@ -365,9 +366,61 @@ def test_trails_follow_an_aircraft_and_end_with_its_minutes() -> None:
     }
 
     trails.update([], now=1320, minutes=5)
-    assert trails.line("a") is None, "older positions drop off"
+    assert trails.line("a", False) is None, "older positions drop off"
     trails.update([], now=1400, minutes=5)
     assert "a" not in trails.points, "an aircraft gone for the trail's minutes is forgotten"
+
+
+def test_a_trail_has_the_colours_of_the_altitudes_it_was_flown_at() -> None:
+    # Straight east, climbing 400 ft between updates, then level.
+    altitudes = [1000, 1400, 1800, 2200, 2600, 2600, 2600]
+    trails = Trails()
+    for index, altitude in enumerate(altitudes):
+        trails.update([plane("a", 1000 + 15 * index, 24.0 + 0.01 * index, alt_baro=altitude)], now=1000 + 15 * index, minutes=5)
+
+    line = trails.line("a", True)
+    assert line.coordinates == [[24.0, 61.5], [24.02, 61.5], [24.04, 61.5], [24.06, 61.5]], "a position for every 500 ft, and the last"
+    assert line.colors == [altitude_color(altitude, False) for altitude in (1000, 1800, 2600, 2600)]
+    assert line.opacities is None
+    assert trails.line("a", False) == TrailLine([[24.0, 61.5], [24.06, 61.5]], None, None)
+
+    last = plane("a", 1090, 24.06, alt_baro=2600)
+    trail = build_features(measure([last], RECEIVER_POSITION), trails, ENGLISH, "m", True, FEED_ID, {})[1]
+    assert trail["properties"] == {"kind": "air.other", "point": "aircraft:a", "colors": line.colors}
+
+    # Level all the way, the trail is all its aircraft's colour, which it takes through `point`.
+    level = Trails()
+    level.update([plane("b", 1000, 24.0, alt_baro=2600)], now=1000, minutes=5)
+    level.update([plane("b", 1015, 24.01, alt_baro=2700)], now=1015, minutes=5)
+    trail = build_features(measure([plane("b", 1015, 24.01, alt_baro=2700)], RECEIVER_POSITION), level, ENGLISH, "m", True, FEED_ID, {})[1]
+    assert trail["properties"] == {"kind": "air.other", "point": "aircraft:b"}
+
+    # Landing, and an altitude lost, are colours of their own however small the change.
+    landing = Trails()
+    for index, data in enumerate([{"alt_baro": 100}, {"alt_baro": "ground"}, {}]):
+        landing.update([plane("c", 1000 + 15 * index, 24.0 + 0.01 * index, **data)], now=1000 + 15 * index, minutes=5)
+    assert landing.line("c", True).colors == [altitude_color(100, False), GROUND_COLOR, UNKNOWN_COLOR]
+
+
+def test_a_trail_fades_out_over_the_oldest_fifth_of_its_minutes() -> None:
+    # Straight east for four minutes, a position every 15 seconds.
+    trails = Trails()
+    for index in range(17):
+        trails.update([plane("a", 1000 + 15 * index, 24.0 + 0.01 * index)], now=1000 + 15 * index, minutes=5)
+    assert trails.line("a", False) == TrailLine([[24.0, 61.5], [24.16, 61.5]], None, None), "not while it is shorter than that"
+
+    # Two minutes on, the trail begins at 1060 and fades until 1120.
+    for index in range(17, 25):
+        trails.update([plane("a", 1000 + 15 * index, 24.0 + 0.01 * index)], now=1000 + 15 * index, minutes=5)
+    assert trails.line("a", False) == TrailLine([[24.04, 61.5], [24.08, 61.5], [24.24, 61.5]], None, [0, 1, 1]), (
+        "a position where the fade ends, so the straight leg after it isn't faded"
+    )
+    trail = build_features(measure([plane("a", 1360, 24.24)], RECEIVER_POSITION), trails, ENGLISH, "m", False, FEED_ID, {})[1]
+    assert trail["properties"] == {"kind": "air.other", "point": "aircraft:a", "opacities": [0, 1, 1]}
+
+    # Between updates the oldest position is no longer at the trail's very end.
+    trails.update([], now=1367, minutes=5)
+    assert trails.line("a", False) == TrailLine([[24.05, 61.5], [24.09, 61.5], [24.24, 61.5]], None, [0.13, 1, 1])
 
 
 def north(hex_code: str, position_time: float, km: float, source: str = "adsb", **data: object) -> Aircraft:
@@ -460,7 +513,7 @@ def test_a_trail_starts_anew_at_a_point_out_of_its_reach(new: tuple[float, float
     trails.update([north("a", 1000, -15)], now=1000, minutes=5)
     trails.update([north("a", 1015, 0)], now=1015, minutes=5)
     trails.update([north("a", *new)], now=max(new[0], 1015), minutes=5)
-    assert [point[0] for point in trails.points["a"]] == times
+    assert [point.time for point in trails.points["a"]] == times
 
 
 def test_a_jump_left_out_for_its_updates_in_a_row_is_believed() -> None:
@@ -496,7 +549,9 @@ def test_an_aircraft_at_a_false_position_stays_where_it_was_believable() -> None
             assert (stays.latitude, stays.longitude, stays.position_time, stays.source) == (61.5, 24.0, 1000, "mlat")
             assert stays.altitude_ft == 35025, "everything but the position is the new report's"
     assert [plane.position_time for plane in shown] == [1030], "the next fix is measured from the believable one, not the false"
-    assert trails.line("a") == [[24.0, 61.5], [24.0, round(61.5 + 7 / KM_PER_DEGREE_LATITUDE, 5)]], "the trail leaves it out"
+    assert trails.line("a", False).coordinates == [[24.0, 61.5], [24.0, round(61.5 + 7 / KM_PER_DEGREE_LATITUDE, 5)]], (
+        "the trail leaves it out"
+    )
 
 
 def test_the_receivers_position_wins_and_adsb_fis_stands_in_for_a_false_one() -> None:

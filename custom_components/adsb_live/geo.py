@@ -6,8 +6,9 @@ GeoJSON positions are [longitude, latitude]; everything else here is latitude fi
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any
 
 # Mean Earth radius (IUGG).
@@ -92,10 +93,13 @@ def _offset_km(point: tuple[float, float], start: tuple[float, float], end: tupl
     return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
 
 
-def simplify_path(path: Sequence[Position], tolerance_km: float) -> list[list[float]]:
-    """Douglas–Peucker over [longitude, latitude] positions: leaves out points closer than the tolerance to the line."""
+def simplify_path(path: Sequence[Position], tolerance_km: float, always: Iterable[int] = ()) -> list[int]:
+    """Douglas–Peucker over [longitude, latitude] positions: the indices of those kept, in order.
+
+    It leaves out the positions closer than the tolerance to the line, except the ones at the indices in `always`.
+    """
     if len(path) <= 2:
-        return [list(position) for position in path]
+        return list(range(len(path)))
     origin_lat = float(path[0][1])
     km_per_degree_longitude = KM_PER_DEGREE_LATITUDE * math.cos(math.radians(origin_lat))
     points = [
@@ -103,8 +107,10 @@ def simplify_path(path: Sequence[Position], tolerance_km: float) -> list[list[fl
         for lon, lat in path
     ]
     keep = [False] * len(path)
-    keep[0] = keep[-1] = True
-    stack = [(0, len(path) - 1)]
+    for index in (0, len(path) - 1, *always):
+        keep[index] = True
+    kept = [index for index, is_kept in enumerate(keep) if is_kept]
+    stack = list(pairwise(kept))
     while stack:
         start, end = stack.pop()
         farthest, distance = -1, tolerance_km
@@ -115,4 +121,4 @@ def simplify_path(path: Sequence[Position], tolerance_km: float) -> list[list[fl
         if farthest >= 0:
             keep[farthest] = True
             stack.extend(((start, farthest), (farthest, end)))
-    return [list(position) for position, kept in zip(path, keep, strict=True) if kept]
+    return [index for index, is_kept in enumerate(keep) if is_kept]

@@ -1,4 +1,4 @@
-/*! adsb-receiver-card 1.4.2 | MIT License */
+/*! adsb-receiver-card 1.5.0 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __decorateClass = (decorators, target, key, kind) => {
@@ -597,7 +597,7 @@ function r5(r6) {
 }
 
 // src/const.ts
-var CARD_VERSION = "1.4.2";
+var CARD_VERSION = "1.5.0";
 var PLATFORM = "adsb_live";
 var RECEIVER_MANUFACTURER = "readsb";
 var SENSORS = [
