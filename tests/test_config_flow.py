@@ -169,6 +169,7 @@ async def test_a_feed_needs_a_radius_within_what_adsb_fi_answers(hass: HomeAssis
     assert any(str(call[1]) == widest for call in receiver_api.mock_calls)
     result = await hass.config_entries.subentries.async_init((entry.entry_id, "feed"), context={"source": SOURCE_USER})
     result = await hass.config_entries.subentries.async_configure(result["flow_id"], {**FEED, "area": {**AREA, "radius": 500_000}})
+    await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY, "without adsb.fi, any radius goes"
 
 
