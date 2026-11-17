@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 from homeassistant.config_entries import ConfigEntryDisabler, ConfigSubentryData
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_live.api import ADSB_FI_API, AdsbNotFound, without_login
 from custom_components.adsb_live.const import DOMAIN
@@ -23,11 +23,6 @@ AREA = {"latitude": RECEIVER_POSITION[0], "longitude": RECEIVER_POSITION[1], "ra
 ADSB_FI_URL = f"{ADSB_FI_API}/lat/61.50/lon/23.76/dist/55"
 # Requests to adsb.fi are kept this far apart in the tests, so that waiting for one's turn shows without slowing them.
 TEST_SPACING_SECONDS = 0.05
-
-
-@pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
-    """Lets Home Assistant load integrations from custom_components/."""
 
 
 @pytest.fixture(autouse=True)

@@ -11,8 +11,8 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.setup import async_setup_component
-from pytest_homeassistant_custom_component.common import async_mock_service
-from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+from pytest_homeassistant.common import async_mock_service
+from pytest_homeassistant.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_live.api import DETAILS_CLIENT, PLANESPOTTERS_API, ROUTES_URL
 from custom_components.adsb_live.const import DOMAIN
