@@ -609,6 +609,8 @@ var SENSORS = [
   "signal",
   "noise"
 ];
+var FEEDER_CONNECTION = "feeder_connection";
+var FEEDER_DETAILS = ["reported_aircraft", "mlat_peers", "mlat_status"];
 var HISTORY_HOURS = 24;
 var HISTORY_REFRESH_MS = 10 * 6e4;
 var AIRCRAFT_REFRESH_MS = 1e4;
@@ -724,7 +726,7 @@ var en_default = {
     row_step_full: "Whole rows",
     row_step_half: "Half rows",
     feeders: "Feeders",
-    feeders_helper: "Other feeders' status, such as Flightradar24's, as rows on a tab of their own. Shown in the full layout.",
+    feeders_helper: "Other feeders' status as rows on a tab of their own. The feeders added to the receiver in the ADS-B Live integration are shown automatically. Here you can add feeders from other sources.",
     feeder_entity: "Status",
     feeder_entity_helper: "Whether the feeder is up",
     feeder_name: "Name",
@@ -806,7 +808,7 @@ var fi_default = {
     row_step_full: "Kokonaisiin riveihin",
     row_step_half: "Puolikkaisiin riveihin",
     feeders: "Sy\xF6tteet",
-    feeders_helper: "Muiden sy\xF6tt\xE4jien, esimerkiksi Flightradar24:n, tila rivein\xE4 omalla v\xE4lilehdell\xE4\xE4n. N\xE4kyy t\xE4ydess\xE4 asettelussa.",
+    feeders_helper: "Muiden sy\xF6tt\xE4jien tila rivein\xE4 omalla v\xE4lilehdell\xE4\xE4n. ADS-B Live -integraatiossa vastaanottimelle lis\xE4tyt sy\xF6tt\xE4j\xE4t n\xE4kyv\xE4t automaattisesti. T\xE4h\xE4n voit lis\xE4t\xE4 sy\xF6tt\xE4ji\xE4 muista l\xE4hteist\xE4.",
     feeder_entity: "Tila",
     feeder_entity_helper: "Onko sy\xF6tt\xE4j\xE4 toiminnassa",
     feeder_name: "Nimi",
@@ -1221,6 +1223,32 @@ function receiverSensors(hass, device) {
   }
   return found;
 }
+function integrationFeeders(hass, device) {
+  const feeders = [];
+  for (const feederDevice of Object.values(hass.devices ?? {})) {
+    if (!feederDevice || feederDevice.via_device_id !== device) {
+      continue;
+    }
+    const own = Object.values(hass.entities ?? {}).filter(
+      (entry) => entry?.device_id === feederDevice.id && entry.platform === PLATFORM
+    );
+    const connection = own.find((entry) => entry?.translation_key === FEEDER_CONNECTION);
+    const detail = own.find((entry) => FEEDER_DETAILS.includes(entry?.translation_key ?? ""));
+    if (connection) {
+      feeders.push({
+        entity: connection.entity_id,
+        name: feederDevice.name_by_user || feederDevice.name || void 0,
+        ...detail ? { detail: detail.entity_id } : {}
+      });
+    }
+  }
+  return feeders.sort((one, other) => (one.name ?? one.entity).localeCompare(other.name ?? other.entity));
+}
+function feederRows(hass, config) {
+  const found = hass ? integrationFeeders(hass, config.device) : [];
+  const shown = new Set(found.map((feeder) => feeder.entity));
+  return [...found, ...(config.feeders ?? []).filter((feeder) => !shown.has(feeder.entity))];
+}
 function receiverName(hass, config) {
   const device = hass.devices?.[config.device];
   return config.name || device?.name_by_user || device?.name || config.device;
@@ -1377,7 +1405,7 @@ var AdsbReceiverCard = class extends i4 {
     this.config = { ...config, feeders: Array.isArray(config.feeders) ? config.feeders.filter((feeder) => !!feeder?.entity) : [] };
   }
   getCardSize() {
-    return this.compact() ? 1 : heightCardSize(this.config ?? {}, 6 + Math.max(4, this.config?.feeders?.length ?? 0), this.minimumHeight());
+    return this.compact() ? 1 : heightCardSize(this.config ?? {}, 6 + Math.max(4, this.feederList().length), this.minimumHeight());
   }
   /**
    * In a sections view the card takes a whole section by default. Below 9 columns, 214 px on a phone, its texts have too
@@ -1501,7 +1529,7 @@ var AdsbReceiverCard = class extends i4 {
     if (!this.hass || !this.config) {
       return [];
     }
-    const feeders = (this.config.feeders ?? []).flatMap((feeder) => [feeder.entity, feeder.detail ?? ""]);
+    const feeders = this.feederList().flatMap((feeder) => [feeder.entity, feeder.detail ?? ""]);
     return [...Object.values(receiverSensors(this.hass, this.config.device)), ...feeders].filter((id) => !!id);
   }
   /** Reads the curve again when `again`, otherwise only when its sensor has changed since the last read. */
@@ -1605,7 +1633,7 @@ var AdsbReceiverCard = class extends i4 {
   }
   /** The panes the card has: the aircraft with ADS-B Live's action while the receiver is available, the feeders when set. */
   panes() {
-    return [...this.listShown() ? ["aircraft"] : [], ...this.config?.feeders?.length ? ["feeders"] : []];
+    return [...this.listShown() ? ["aircraft"] : [], ...this.feederList().length ? ["feeders"] : []];
   }
   /**
    * The pane shown: the one picked from its tab, or else the feeders while one of them has a problem, and the aircraft
@@ -1620,7 +1648,7 @@ var AdsbReceiverCard = class extends i4 {
   }
   /** Whether a feeder is down, unavailable or missing. A state that says neither up nor down is no problem. */
   feederProblem() {
-    return (this.config?.feeders ?? []).some((feeder) => {
+    return this.feederList().some((feeder) => {
       const entity = this.hass?.states[feeder.entity];
       return !entity || entity.state === "unavailable" || feederState(entity) === "error";
     });
@@ -1654,7 +1682,7 @@ var AdsbReceiverCard = class extends i4 {
       ) : tab(
         pane,
         b2`<span class="label" title=${this.text("feeders.title")}>${this.text("feeders.title")}</span>`,
-        formatNumber(this.config?.feeders?.length ?? 0, this.numberFormat(), 0),
+        formatNumber(this.feederList().length, this.numberFormat(), 0),
         this.feederProblem()
       )
     )}
@@ -1668,8 +1696,24 @@ var AdsbReceiverCard = class extends i4 {
   aircraftCount(sensors) {
     return this.shownPane() === "aircraft" && this.aircraft ? formatNumber(this.aircraft.aircraft.length, this.numberFormat(), 0) : this.number(sensors.aircraft_tracked);
   }
+  /**
+   * The feeders' rows: those added in the integration, then the card's own. Kept until the registries or the
+   * configuration change, as finding them reads every entity, and shouldUpdate asks on every state change in the house.
+   */
+  feederList() {
+    if (!this.config) {
+      return [];
+    }
+    const cached = this.feederCache;
+    if (cached?.config === this.config && cached.entities === this.hass?.entities && cached.devices === this.hass?.devices) {
+      return cached.rows;
+    }
+    const rows = feederRows(this.hass, this.config);
+    this.feederCache = { config: this.config, entities: this.hass?.entities, devices: this.hass?.devices, rows };
+    return rows;
+  }
   feeders() {
-    return b2`${(this.config?.feeders ?? []).map((feeder) => this.feeder(feeder))}`;
+    return b2`${this.feederList().map((feeder) => this.feeder(feeder))}`;
   }
   /** Whether the aircraft can be on the card: the full layout of a receiver that isn't unavailable, with ADS-B Live's action. */
   listShown() {
@@ -1804,7 +1848,7 @@ var AdsbReceiverCard = class extends i4 {
       return 0;
     }
     const width = this.width || Infinity;
-    return LEAST_PX.find(([least]) => width >= least)[1] - (this.config?.feeders?.length ? 0 : TABS_PX);
+    return LEAST_PX.find(([least]) => width >= least)[1] - (this.feederList().length ? 0 : TABS_PX);
   }
   /** Parts of a sentence, each kept whole, so a number never wraps away from its unit. */
   pieces(parts) {

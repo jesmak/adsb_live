@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
     curvePoints,
+    feederRows,
     feederState,
     formatNumber,
+    integrationFeeders,
     meter,
     receiverDevices,
     receiverSensors,
@@ -11,7 +13,7 @@ import {
     linePath,
     peakOf,
 } from "../src/receiver";
-import { FEED, RECEIVER, SENSOR_IDS, entity, hass } from "./fixtures";
+import { FEED, RECEIVER, SENSOR_IDS, addFeeder, entity, hass } from "./fixtures";
 
 describe("the receiver", () => {
     it("is a device of the integration's with readsb as its manufacturer, never one of its map feeds", () => {
@@ -153,6 +155,47 @@ describe("a feeder's dot", () => {
 
     it("is unknown for an entity that doesn't exist", () => {
         expect(feederState(undefined)).toBe("unknown");
+    });
+});
+
+describe("the feeders added in the integration", () => {
+    function withFeeders() {
+        const state = hass();
+        addFeeder(state, "fr24", "Flightradar24", "on", { key: "reported_aircraft", state: "5" });
+        addFeeder(state, "adsb_fi", "adsb.fi", "off", { key: "mlat_peers", state: "0" });
+        // Another receiver's feeder.
+        addFeeder(state, "adsb_lol", "adsb.lol", "on", { key: "mlat_peers", state: "2" }, "receiver0002");
+        return state;
+    }
+
+    it("are the devices under the receiver's, each with its connection and detail, by name", () => {
+        expect(integrationFeeders(withFeeders(), RECEIVER)).toEqual([
+            { entity: "binary_sensor.adsb_fi_connection", name: "adsb.fi", detail: "sensor.adsb_fi_mlat_peers" },
+            { entity: "binary_sensor.fr24_connection", name: "Flightradar24", detail: "sensor.fr24_reported_aircraft" },
+        ]);
+    });
+
+    it("go by the name the device was renamed to, and leave out one without its connection sensor", () => {
+        const state = withFeeders();
+        state.devices!.feeder_fr24 = { ...state.devices!.feeder_fr24!, name_by_user: "FR24" };
+        delete state.entities!["binary_sensor.adsb_fi_connection"];
+        expect(integrationFeeders(state, RECEIVER)).toEqual([
+            { entity: "binary_sensor.fr24_connection", name: "FR24", detail: "sensor.fr24_reported_aircraft" },
+        ]);
+    });
+
+    it("come before the card's own feeders, which don't repeat them", () => {
+        const config = {
+            type: "custom:adsb-receiver-card",
+            device: RECEIVER,
+            feeders: [{ entity: "binary_sensor.opensky_link" }, { entity: "binary_sensor.fr24_connection", name: "Again" }],
+        };
+        expect(feederRows(withFeeders(), config).map((feeder) => feeder.entity)).toEqual([
+            "binary_sensor.adsb_fi_connection",
+            "binary_sensor.fr24_connection",
+            "binary_sensor.opensky_link",
+        ]);
+        expect(feederRows(undefined, config)).toEqual(config.feeders);
     });
 });
 

@@ -1,9 +1,9 @@
 /** What the card reads from a receiver: its sensors, found through the device, and what their values mean. */
-import { METER_MAX_DBFS, METER_MIN_DBFS, PLATFORM, RECEIVER_MANUFACTURER, SENSORS } from "./const";
+import { FEEDER_CONNECTION, FEEDER_DETAILS, METER_MAX_DBFS, METER_MIN_DBFS, PLATFORM, RECEIVER_MANUFACTURER, SENSORS } from "./const";
 import type { SensorKey } from "./const";
 import type { HassEntity, HomeAssistant } from "./hass";
 import type { StatisticRow } from "./history";
-import type { AdsbReceiverCardConfig } from "./types";
+import type { AdsbReceiverCardConfig, FeederConfig } from "./types";
 
 export type Status = "receiving" | "quiet" | "unavailable";
 export type FeederState = "ok" | "error" | "unknown";
@@ -33,6 +33,39 @@ export function receiverSensors(hass: HomeAssistant, device: string): Partial<Re
         }
     }
     return found;
+}
+
+/**
+ * The feeders added to the receiver in the integration, each a device under the receiver's, by name. A feeder without
+ * its connection sensor, as one whose sensor is disabled, is left out.
+ */
+export function integrationFeeders(hass: HomeAssistant, device: string): FeederConfig[] {
+    const feeders: FeederConfig[] = [];
+    for (const feederDevice of Object.values(hass.devices ?? {})) {
+        if (!feederDevice || feederDevice.via_device_id !== device) {
+            continue;
+        }
+        const own = Object.values(hass.entities ?? {}).filter(
+            (entry) => entry?.device_id === feederDevice.id && entry.platform === PLATFORM,
+        );
+        const connection = own.find((entry) => entry?.translation_key === FEEDER_CONNECTION);
+        const detail = own.find((entry) => FEEDER_DETAILS.includes(entry?.translation_key ?? ""));
+        if (connection) {
+            feeders.push({
+                entity: connection.entity_id,
+                name: feederDevice.name_by_user || feederDevice.name || undefined,
+                ...(detail ? { detail: detail.entity_id } : {}),
+            });
+        }
+    }
+    return feeders.sort((one, other) => (one.name ?? one.entity).localeCompare(other.name ?? other.entity));
+}
+
+/** The integration's feeders first, then those of the card's own configuration that aren't among them. */
+export function feederRows(hass: HomeAssistant | undefined, config: AdsbReceiverCardConfig): FeederConfig[] {
+    const found = hass ? integrationFeeders(hass, config.device) : [];
+    const shown = new Set(found.map((feeder) => feeder.entity));
+    return [...found, ...(config.feeders ?? []).filter((feeder) => !shown.has(feeder.entity))];
 }
 
 export function receiverName(hass: HomeAssistant, config: AdsbReceiverCardConfig): string {

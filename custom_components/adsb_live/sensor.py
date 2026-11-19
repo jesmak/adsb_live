@@ -1,4 +1,5 @@
-"""The receiver's health sensors, and per feed a map feed sensor and a sensor for the nearest aircraft.
+"""The receiver's health sensors, per feed a map feed sensor and a sensor for the nearest aircraft, and per other feeder
+what it reports.
 
 A feed sensor's state is the number of aircraft; they are in the `geojson`
 attribute, in the Map Feed format (docs/map-feed-format.md in map-feed-card).
@@ -11,15 +12,14 @@ from typing import Any
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
 from homeassistant.const import MATCH_ALL, UnitOfLength
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .aircraft import aircraft_name
-from .api import without_login
 from .colors import legend
-from .const import ADSB_FI_ATTRIBUTION, ADSB_FI_ATTRIBUTION_URL, DOMAIN, MAP_FEED_VERSION
-from .coordinator import AdsbConfigEntry, FeedCoordinator, StatsCoordinator, event_data
+from .const import ADSB_FI_ATTRIBUTION, ADSB_FI_ATTRIBUTION_URL, MAP_FEED_VERSION
+from .coordinator import AdsbConfigEntry, FeedCoordinator, StatsCoordinator, event_data, receiver_device_info
+from .feeders import MLAT_STATES, FeederCoordinator
 
 # The keys are those of health.receiver_health().
 HEALTH_SENSORS = (
@@ -79,6 +79,20 @@ HEALTH_SENSORS = (
 )
 
 
+# What a feeder reports besides its connection, by FeederKind.detail. Their units are in the translations.
+FEEDER_DETAILS = {
+    "reported_aircraft": SensorEntityDescription(
+        key="reported_aircraft", translation_key="reported_aircraft", state_class=SensorStateClass.MEASUREMENT, icon="mdi:airplane"
+    ),
+    "mlat_peers": SensorEntityDescription(
+        key="mlat_peers", translation_key="mlat_peers", state_class=SensorStateClass.MEASUREMENT, icon="mdi:access-point-network"
+    ),
+    "mlat_status": SensorEntityDescription(
+        key="mlat_status", translation_key="mlat_status", device_class=SensorDeviceClass.ENUM, options=MLAT_STATES, icon="mdi:clock-check"
+    ),
+}
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: AdsbConfigEntry,
@@ -88,6 +102,8 @@ async def async_setup_entry(
     async_add_entities([HealthSensor(runtime.stats, description) for description in HEALTH_SENSORS])
     for subentry_id, coordinator in runtime.feeds.items():
         async_add_entities([MapFeedSensor(coordinator), NearestAircraftSensor(coordinator)], config_subentry_id=subentry_id)
+    for subentry_id, feeder in runtime.feeders.items():
+        async_add_entities([FeederDetailSensor(feeder)], config_subentry_id=subentry_id)
 
 
 class HealthSensor(CoordinatorEntity[StatsCoordinator], SensorEntity):
@@ -99,19 +115,29 @@ class HealthSensor(CoordinatorEntity[StatsCoordinator], SensorEntity):
         super().__init__(coordinator)
         self.entity_description = description
         entry = coordinator.config_entry
-        receiver = entry.runtime_data.receiver
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-            manufacturer="readsb",
-            sw_version=receiver.version,
-            configuration_url=without_login(receiver.url),
-        )
+        self._attr_device_info = receiver_device_info(entry, entry.runtime_data.receiver)
 
     @property
     def native_value(self) -> float | None:
         return (self.coordinator.data or {}).get(self.entity_description.key)
+
+
+class FeederDetailSensor(CoordinatorEntity[FeederCoordinator], SensorEntity):
+    """The aircraft Flightradar24's feeder reports, MLAT's peers at adsb.fi or adsb.lol, or MLAT's state at FlightAware."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator: FeederCoordinator) -> None:
+        super().__init__(coordinator)
+        self.entity_description = FEEDER_DETAILS[coordinator.kind.detail]
+        self._attr_unique_id = f"{coordinator.subentry.subentry_id}_{self.entity_description.key}"
+        self._attr_device_info = coordinator.device_info
+
+    @property
+    def native_value(self) -> int | str | None:
+        data = self.coordinator.data
+        return data.detail if data else None
 
 
 class MapFeedSensor(CoordinatorEntity[FeedCoordinator], SensorEntity):

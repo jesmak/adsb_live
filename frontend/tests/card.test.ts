@@ -6,7 +6,7 @@ import { HISTORY_REFRESH_MS } from "../src/const";
 import { compactFeeders } from "../src/editor";
 import type { HomeAssistant } from "../src/hass";
 import type { AdsbReceiverCardConfig } from "../src/types";
-import { RECEIVER, SENSOR_IDS, entity, hass } from "./fixtures";
+import { RECEIVER, SENSOR_IDS, addFeeder, entity, hass } from "./fixtures";
 
 const NOW = Date.parse("2026-10-14T07:40:00Z");
 
@@ -251,6 +251,21 @@ describe("adsb-receiver-card", () => {
         document.body.innerHTML = "";
         const networked = await card(hass({ signal: "unknown", noise: "unknown" }));
         expect(networked.shadowRoot!.querySelector(".meter")).toBeNull();
+    });
+
+    it("shows the feeders added in the integration by themselves, ahead of the card's own", async () => {
+        const state = hass({}, FEEDERS);
+        addFeeder(state, "adsb_fi", "adsb.fi", "on", { key: "mlat_peers", state: "3", unit: "vertaista" });
+        const alone = await card(state);
+        expect([...(await feeders(alone)).querySelectorAll(".feeder")].map(text)).toEqual(["adsb.fi Yhdistetty, 3 vertaista"]);
+        expect(text(alone.shadowRoot!.querySelector(".tab.on .count"))).toBe("1");
+
+        document.body.innerHTML = "";
+        const both = await card(state, { feeders: [{ entity: "binary_sensor.fr24_link", name: "Flightradar24" }] });
+        expect([...(await feeders(both)).querySelectorAll(".feeder")].map(text)).toEqual([
+            "adsb.fi Yhdistetty, 3 vertaista",
+            "Flightradar24 Yhdistetty",
+        ]);
     });
 
     describe("the entities a feeder names", () => {

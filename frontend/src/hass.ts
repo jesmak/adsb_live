@@ -22,6 +22,8 @@ interface DeviceRegistryEntry {
     name_by_user?: string | null;
     manufacturer?: string | null;
     sw_version?: string | null;
+    /** The device this one is connected through, as a feeder is through its receiver. */
+    via_device_id?: string | null;
 }
 
 export interface HomeAssistant {

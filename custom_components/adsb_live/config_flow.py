@@ -1,8 +1,8 @@
 """Config flow.
 
 The config entry is one receiver: its address, and the language and altitude unit
-of the feed texts. Each feed is a config subentry, added and changed from the
-integration page.
+of the feed texts. Each feed, and each other feeder, is a config subentry, added
+and changed from the integration page.
 """
 
 from __future__ import annotations
@@ -36,9 +36,10 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util.unit_system import METRIC_SYSTEM
 
-from .api import ADSB_FI_MAX_AREA_KM, AdsbError, ReceiverClient, normalize_url, without_login
+from .api import ADSB_FI_MAX_AREA_KM, AdsbError, ReceiverClient, async_user_agent, normalize_url, without_login
 from .const import (
     ALTITUDE_UNITS,
     CONF_ADSB_FI,
@@ -64,7 +65,9 @@ from .const import (
     MAX_TRAIL_MINUTES,
     MIN_REFRESH_SECONDS,
     SUBENTRY_FEED,
+    SUBENTRY_FEEDER,
 )
+from .feeders import CONF_KIND, FEEDER_KINDS, FeederKind, feeder_url, fetch_status
 from .geo import METRES_PER_FOOT
 
 DEFAULT_NAME = "ADS-B"
@@ -149,7 +152,81 @@ class AdsbLiveConfigFlow(ConfigFlow, domain=DOMAIN):
     @classmethod
     @callback
     def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
-        return {SUBENTRY_FEED: FeedFlow}
+        return {SUBENTRY_FEED: FeedFlow, SUBENTRY_FEEDER: FeederFlow}
+
+
+class FeederFlow(ConfigSubentryFlow):
+    """Adding another feeder from a menu of the kinds the receiver doesn't have yet, and changing a local one's address.
+
+    The menu's options are the steps of FEEDER_KINDS' keys. A feeder is saved once its status can be read, connected or not.
+    """
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        added = {
+            subentry.data.get(CONF_KIND) for subentry in self._get_entry().subentries.values() if subentry.subentry_type == SUBENTRY_FEEDER
+        }
+        kinds = [kind for kind in FEEDER_KINDS if kind not in added]
+        if not kinds:
+            return self.async_abort(reason="all_feeders_added")
+        return self.async_show_menu(step_id="user", menu_options=kinds)
+
+    async def async_step_flightradar24(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return await self._async_step_kind("flightradar24", user_input)
+
+    async def async_step_flightaware(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return await self._async_step_kind("flightaware", user_input)
+
+    async def async_step_adsb_fi(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return await self._async_step_kind("adsb_fi", user_input)
+
+    async def async_step_adsb_lol(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return await self._async_step_kind("adsb_lol", user_input)
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        subentry = self._get_reconfigure_subentry()
+        kind = FEEDER_KINDS[subentry.data[CONF_KIND]]
+        if not kind.file:
+            return self.async_abort(reason="no_settings", description_placeholders={"name": kind.name})
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            url = feeder_url(user_input[CONF_URL], kind.file)
+            errors = await self._async_check(kind, url)
+            if not errors:
+                data = {**subentry.data, CONF_URL: url}
+                return self.async_update_and_abort(self._get_entry(), subentry, data=data, reason="reconfigure_successful")
+        values = user_input or {CONF_URL: subentry.data[CONF_URL]}
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(FEEDER_URL_SCHEMA, values),
+            errors=errors,
+            description_placeholders={"name": kind.name, "file": kind.file},
+        )
+
+    async def _async_step_kind(self, key: str, user_input: dict[str, Any] | None) -> SubentryFlowResult:
+        kind = FEEDER_KINDS[key]
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            url = feeder_url(user_input[CONF_URL], kind.file) if kind.file else None
+            errors = await self._async_check(kind, url)
+            if not errors:
+                return self.async_create_entry(title=kind.name, data={CONF_KIND: key, **({CONF_URL: url} if url else {})})
+        schema = FEEDER_URL_SCHEMA if kind.file else vol.Schema({})
+        return self.async_show_form(
+            step_id=key,
+            data_schema=self.add_suggested_values_to_schema(schema, user_input or {}),
+            errors=errors,
+            description_placeholders={"file": kind.file} if kind.file else None,
+        )
+
+    async def _async_check(self, kind: FeederKind, url: str | None) -> dict[str, str]:
+        try:
+            await fetch_status(async_get_clientsession(self.hass), kind, url, await async_user_agent(self.hass))
+        except UpdateFailed:
+            return {CONF_URL: "feeder_unreachable"} if url else {"base": "service_unreachable"}
+        return {}
+
+
+FEEDER_URL_SCHEMA = vol.Schema({vol.Required(CONF_URL): TextSelector(TextSelectorConfig(type=TextSelectorType.URL))})
 
 
 class FeedFlow(ConfigSubentryFlow):

@@ -20,6 +20,7 @@ import type { StatisticRow } from "./history";
 import { browserLanguage, translate } from "./localize/localize";
 import {
     curvePoints,
+    feederRows,
     feederState,
     formatNumber,
     meter,
@@ -78,6 +79,12 @@ export class AdsbReceiverCard extends LitElement {
     @state() private historyLoaded = false;
     private historyOf?: string;
     private timer?: ReturnType<typeof setInterval>;
+    private feederCache?: {
+        config: AdsbReceiverCardConfig;
+        entities: HomeAssistant["entities"];
+        devices: HomeAssistant["devices"];
+        rows: FeederConfig[];
+    };
     /** The pane picked from its tab, until the page is loaded again. Until then the card picks, see `shownPane`. */
     @state() private picked?: Pane;
     /** The receiver's aircraft from the last answer for `aircraftOf`, kept when a later reading fails. */
@@ -141,9 +148,7 @@ export class AdsbReceiverCard extends LitElement {
 
     public getCardSize(): number {
         // The fixed part is about six, and the pane a row for each feeder or a few aircraft.
-        return this.compact()
-            ? 1
-            : heightCardSize(this.config ?? {}, 6 + Math.max(4, this.config?.feeders?.length ?? 0), this.minimumHeight());
+        return this.compact() ? 1 : heightCardSize(this.config ?? {}, 6 + Math.max(4, this.feederList().length), this.minimumHeight());
     }
 
     /**
@@ -317,7 +322,7 @@ export class AdsbReceiverCard extends LitElement {
         if (!this.hass || !this.config) {
             return [];
         }
-        const feeders = (this.config.feeders ?? []).flatMap((feeder) => [feeder.entity, feeder.detail ?? ""]);
+        const feeders = this.feederList().flatMap((feeder) => [feeder.entity, feeder.detail ?? ""]);
         return [...Object.values(receiverSensors(this.hass, this.config.device)), ...feeders].filter((id) => !!id);
     }
 
@@ -436,7 +441,7 @@ export class AdsbReceiverCard extends LitElement {
 
     /** The panes the card has: the aircraft with ADS-B Live's action while the receiver is available, the feeders when set. */
     private panes(): Pane[] {
-        return [...(this.listShown() ? (["aircraft"] as Pane[]) : []), ...(this.config?.feeders?.length ? (["feeders"] as Pane[]) : [])];
+        return [...(this.listShown() ? (["aircraft"] as Pane[]) : []), ...(this.feederList().length ? (["feeders"] as Pane[]) : [])];
     }
 
     /**
@@ -453,7 +458,7 @@ export class AdsbReceiverCard extends LitElement {
 
     /** Whether a feeder is down, unavailable or missing. A state that says neither up nor down is no problem. */
     private feederProblem(): boolean {
-        return (this.config?.feeders ?? []).some((feeder) => {
+        return this.feederList().some((feeder) => {
             const entity = this.hass?.states[feeder.entity];
             return !entity || entity.state === "unavailable" || feederState(entity) === "error";
         });
@@ -494,7 +499,7 @@ export class AdsbReceiverCard extends LitElement {
                         : tab(
                               pane,
                               html`<span class="label" title=${this.text("feeders.title")}>${this.text("feeders.title")}</span>`,
-                              formatNumber(this.config?.feeders?.length ?? 0, this.numberFormat(), 0),
+                              formatNumber(this.feederList().length, this.numberFormat(), 0),
                               this.feederProblem(),
                           ),
                 )}
@@ -512,8 +517,25 @@ export class AdsbReceiverCard extends LitElement {
             : this.number(sensors.aircraft_tracked);
     }
 
+    /**
+     * The feeders' rows: those added in the integration, then the card's own. Kept until the registries or the
+     * configuration change, as finding them reads every entity, and shouldUpdate asks on every state change in the house.
+     */
+    private feederList(): FeederConfig[] {
+        if (!this.config) {
+            return [];
+        }
+        const cached = this.feederCache;
+        if (cached?.config === this.config && cached.entities === this.hass?.entities && cached.devices === this.hass?.devices) {
+            return cached.rows;
+        }
+        const rows = feederRows(this.hass, this.config);
+        this.feederCache = { config: this.config, entities: this.hass?.entities, devices: this.hass?.devices, rows };
+        return rows;
+    }
+
     private feeders(): TemplateResult {
-        return html`${(this.config?.feeders ?? []).map((feeder) => this.feeder(feeder))}`;
+        return html`${this.feederList().map((feeder) => this.feeder(feeder))}`;
     }
 
     /** Whether the aircraft can be on the card: the full layout of a receiver that isn't unavailable, with ADS-B Live's action. */
@@ -670,7 +692,7 @@ export class AdsbReceiverCard extends LitElement {
         }
         const width = this.width || Infinity;
         // Without feeders the aircraft are the only pane, under no tabs.
-        return LEAST_PX.find(([least]) => width >= least)![1] - (this.config?.feeders?.length ? 0 : TABS_PX);
+        return LEAST_PX.find(([least]) => width >= least)![1] - (this.feederList().length ? 0 : TABS_PX);
     }
 
     /** Parts of a sentence, each kept whole, so a number never wraps away from its unit. */

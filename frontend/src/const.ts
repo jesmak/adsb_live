@@ -19,6 +19,10 @@ export const SENSORS = [
 ] as const;
 export type SensorKey = (typeof SENSORS)[number];
 
+/** A feeder added to the receiver in the integration: its connection, and what it reports, by their translation keys. */
+export const FEEDER_CONNECTION = "feeder_connection";
+export const FEEDER_DETAILS = ["reported_aircraft", "mlat_peers", "mlat_status"];
+
 /** How far back the curve of aircraft tracked reaches, and how often it is read again. The statistics change once an hour. */
 export const HISTORY_HOURS = 24;
 export const HISTORY_REFRESH_MS = 10 * 60_000;

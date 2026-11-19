@@ -17,6 +17,8 @@ from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import aiohttp
+from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 from homeassistant.util.hass_dict import HassKey
 
 from .const import DOMAIN
@@ -37,6 +39,12 @@ ADSB_FI_SPACING_SECONDS = 1.1
 REQUEST_TIMEOUT_SECONDS = 15
 # adsb.fi answers in well under a second. A request that hangs holds every other feed's turn, so it gives up sooner.
 ADSB_FI_TIMEOUT_SECONDS = 5
+
+
+async def async_user_agent(hass: HomeAssistant) -> str:
+    """Identifies the integration to the services it asks, with a way to reach its author. Contains no personal information."""
+    integration = await async_get_integration(hass, DOMAIN)
+    return f"{DOMAIN}/{integration.version} (+https://github.com/jesmak/adsb_live)"
 
 
 class AdsbError(Exception):
@@ -67,7 +75,7 @@ def without_login(url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc.rpartition("@")[2], parts.path, parts.query, parts.fragment))
 
 
-async def _get_json(
+async def get_json(
     session: aiohttp.ClientSession,
     url: str,
     headers: dict[str, str] | None = None,
@@ -89,7 +97,7 @@ async def _get(
     name: str | None,
     read: Callable[[aiohttp.ClientResponse], Awaitable[Any]],
 ) -> Any:
-    """What `read` makes of the answer at `url`, as _get_json describes its errors."""
+    """What `read` makes of the answer at `url`, as get_json describes its errors."""
     source = name or url
     try:
         async with asyncio.timeout(timeout):
@@ -140,7 +148,7 @@ class ReceiverClient:
         name = shown if shown != url else None
         if text:
             return await _get(self._session, url, None, REQUEST_TIMEOUT_SECONDS, name, lambda response: response.text())
-        return await _get_json(self._session, url, name=name)
+        return await get_json(self._session, url, name=name)
 
 
 class RequestSpacing:
@@ -189,7 +197,7 @@ class AdsbFiClient:
         url = f"{ADSB_FI_API}/lat/{latitude:.2f}/lon/{longitude:.2f}/dist/{radius_nm}"
         async with self._spacing:
             # Named without the URL, so a log pasted into an issue doesn't show where the area is.
-            return await _get_json(self._session, url, {"User-Agent": self._user_agent}, ADSB_FI_TIMEOUT_SECONDS, "adsb.fi")
+            return await get_json(self._session, url, {"User-Agent": self._user_agent}, ADSB_FI_TIMEOUT_SECONDS, "adsb.fi")
 
 
 ADSB_FI_CLIENT: HassKey[AdsbFiClient] = HassKey(f"{DOMAIN}_adsb_fi")
@@ -251,7 +259,7 @@ class DetailsClient:
     async def _fetch_route(self, callsign: str) -> list[Airport] | None:
         url = f"{ROUTES_URL}/{quote(callsign[:2])}/{quote(callsign)}.json"
         try:
-            data = await _get_json(self._session, url, self._headers, DETAILS_TIMEOUT_SECONDS, "the route data")
+            data = await get_json(self._session, url, self._headers, DETAILS_TIMEOUT_SECONDS, "the route data")
         except AdsbNotFound:
             return None
         items = data.get("_airports")
@@ -269,7 +277,7 @@ class DetailsClient:
     async def _fetch_photo(self, hex_code: str) -> Photo | None:
         url = f"{PLANESPOTTERS_API}/{quote(hex_code)}"
         try:
-            data = await _get_json(self._session, url, self._headers, DETAILS_TIMEOUT_SECONDS, "Planespotters")
+            data = await get_json(self._session, url, self._headers, DETAILS_TIMEOUT_SECONDS, "Planespotters")
         except AdsbNotFound:
             return None
         items = data.get("photos")

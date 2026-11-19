@@ -24,8 +24,9 @@ ALTITUDE_UNITS: Final = ["m", "ft"]
 # Also for an entry saved without the setting.
 DEFAULT_ALTITUDE_UNIT: Final = "m"
 
-# Feed type (config subentry type)
+# Config subentry types: an aircraft feed, and another feeder whose status is shown (feeders.py)
 SUBENTRY_FEED: Final = "feed"
+SUBENTRY_FEEDER: Final = "feeder"
 
 # Feed settings (config subentry data)
 CONF_AREA: Final = "area"

@@ -3,7 +3,8 @@
 A config entry is one receiver (readsb, usually behind tar1090), a device with
 its health sensors. Each feed is a config subentry with its own coordinator, a
 sensor that writes the Map Feed format map-feed-card draws, a sensor for the
-nearest aircraft and an event entity.
+nearest aircraft and an event entity. Each other feeder the receiver feeds, such
+as Flightradar24, is a config subentry too, with its status (feeders.py).
 """
 
 from __future__ import annotations
@@ -14,18 +15,28 @@ from homeassistant.const import CONF_URL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.loader import async_get_integration
 
-from .api import ADSB_FI_CLIENT, DETAILS_CLIENT, AdsbError, AdsbFiClient, DetailsClient, ReceiverClient
+from .api import ADSB_FI_CLIENT, DETAILS_CLIENT, AdsbError, AdsbFiClient, DetailsClient, ReceiverClient, async_user_agent
 from .card import async_add_card_resource, async_remove_card_resource, async_serve_card
-from .const import CONF_ALTITUDE_UNIT, CONF_LANGUAGE, DEFAULT_ALTITUDE_UNIT, DOMAIN
-from .coordinator import AdsbConfigEntry, AdsbRuntimeData, FeedCoordinator, Receiver, ReceiverAircraft, StatsCoordinator, TypeKinds
+from .const import CONF_ALTITUDE_UNIT, CONF_LANGUAGE, DEFAULT_ALTITUDE_UNIT, DOMAIN, SUBENTRY_FEEDER
+from .coordinator import (
+    AdsbConfigEntry,
+    AdsbRuntimeData,
+    FeedCoordinator,
+    Receiver,
+    ReceiverAircraft,
+    StatsCoordinator,
+    TypeKinds,
+    receiver_device_info,
+)
+from .feeders import FeederCoordinator
 from .services import async_setup_services
 from .texts import async_load_texts
 
-PLATFORMS = [Platform.EVENT, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.EVENT, Platform.SENSOR]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -41,13 +52,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
     modified = entry.modified_at
     # Before the receiver is reached, so the card is there to show it not answering.
     await async_add_card_resource(hass)
-    integration = await async_get_integration(hass, DOMAIN)
     session = async_get_clientsession(hass)
     client = ReceiverClient(session)
+    # Sent to adsb.fi, adsb.lol, the route data and Planespotters.
+    user_agent = await async_user_agent(hass)
     if ADSB_FI_CLIENT not in hass.data:
-        # Identifies the integration to adsb.fi, the route data and Planespotters, with a way to reach its author.
-        # Contains no personal information.
-        user_agent = f"{DOMAIN}/{integration.version} (+https://github.com/jesmak/adsb_live)"
         hass.data[ADSB_FI_CLIENT] = AdsbFiClient(session, user_agent)
         hass.data[DETAILS_CLIENT] = DetailsClient(session, user_agent)
     url = entry.data[CONF_URL]
@@ -56,6 +65,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
     except AdsbError as err:
         raise ConfigEntryNotReady(str(err)) from err
 
+    # The feeders' devices name the receiver's by its id, so it is there before the platforms, which set up side by side.
+    receiver_device = dr.async_get(hass).async_get_or_create_from_info(
+        config_entry_id=entry.entry_id, device_info=receiver_device_info(entry, receiver)
+    )
+
     # A receiver saved before the setting existed in the integration uses the default.
     altitude_unit = entry.data.get(CONF_ALTITUDE_UNIT, DEFAULT_ALTITUDE_UNIT)
     entry.runtime_data = AdsbRuntimeData(
@@ -63,6 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
         adsb_fi=hass.data[ADSB_FI_CLIENT],
         details=hass.data[DETAILS_CLIENT],
         receiver=receiver,
+        receiver_device_id=receiver_device.id,
         texts=await async_load_texts(hass, entry.data[CONF_LANGUAGE]),
         altitude_unit=altitude_unit,
         stats=StatsCoordinator(hass, entry, client, url),
@@ -70,10 +85,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbConfigEntry) -> bool
         types=TypeKinds(hass, client, url),
     )
     for subentry in entry.subentries.values():
-        entry.runtime_data.feeds[subentry.subentry_id] = FeedCoordinator(hass, entry, subentry)
+        if subentry.subentry_type == SUBENTRY_FEEDER:
+            entry.runtime_data.feeders[subentry.subentry_id] = FeederCoordinator(hass, entry, subentry, session, user_agent)
+        else:
+            entry.runtime_data.feeds[subentry.subentry_id] = FeedCoordinator(hass, entry, subentry)
 
-    # A feed that fails becomes unavailable and keeps retrying; it doesn't stop the others from loading.
-    coordinators = [entry.runtime_data.stats, *entry.runtime_data.feeds.values()]
+    # A feed or feeder that fails becomes unavailable and keeps retrying; it doesn't stop the others from loading.
+    coordinators = [entry.runtime_data.stats, *entry.runtime_data.feeds.values(), *entry.runtime_data.feeders.values()]
     await asyncio.gather(*(coordinator.async_refresh() for coordinator in coordinators))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

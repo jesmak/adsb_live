@@ -69,7 +69,7 @@
         "row_step_full": "Whole rows",
         "row_step_half": "Half rows",
         "feeders": "Feeders",
-        "feeders_helper": "Other feeders' status, such as Flightradar24's, as rows on a tab of their own. Shown in the full layout.",
+        "feeders_helper": "Other feeders' status as rows on a tab of their own. The feeders added to the receiver in the ADS-B Live integration are shown automatically. Here you can add feeders from other sources.",
         "feeder_entity": "Status",
         "feeder_entity_helper": "Whether the feeder is up",
         "feeder_name": "Name",

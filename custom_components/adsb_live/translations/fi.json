@@ -102,6 +102,69 @@
       "abort": {
         "reconfigure_successful": "Syöte tallennettu."
       }
+    },
+    "feeder": {
+      "entry_type": "Syöttäjä",
+      "initiate_flow": {
+        "user": "Lisää syöttäjä",
+        "reconfigure": "Muokkaa syöttäjää"
+      },
+      "step": {
+        "user": {
+          "title": "Syöttäjä",
+          "description": "Valitse palvelu, jolle vastaanottimesi syöttää tietoja.",
+          "menu_options": {
+            "flightradar24": "Flightradar24",
+            "flightaware": "FlightAware",
+            "adsb_fi": "adsb.fi",
+            "adsb_lol": "adsb.lol"
+          }
+        },
+        "flightradar24": {
+          "title": "Flightradar24",
+          "description": "fr24feedin tila luetaan sen omalta verkkopalvelimelta, sen tarjoamasta tiedostosta {file}.",
+          "data": {
+            "url": "Osoite"
+          },
+          "data_description": {
+            "url": "fr24feedin verkkosivun osoite, yleensä portissa 8754."
+          }
+        },
+        "flightaware": {
+          "title": "FlightAware",
+          "description": "piawaren tila luetaan tiedostosta {file}.",
+          "data": {
+            "url": "Osoite"
+          },
+          "data_description": {
+            "url": "Sen verkkopalvelimen osoite, jolta {file} löytyy."
+          }
+        },
+        "adsb_fi": {
+          "title": "adsb.fi",
+          "description": "adsb.fi kertoo mitkä syötteet se saa samasta IP-osoitteesta, josta Home Assistantisi pyyntö tulee. Tila luetaan 2 minuutin välein."
+        },
+        "adsb_lol": {
+          "title": "adsb.lol",
+          "description": "adsb.lol kertoo mitkä syötteet se saa samasta IP-osoitteesta, josta Home Assistantisi pyyntö tulee. Tila luetaan 5 minuutin välein."
+        },
+        "reconfigure": {
+          "title": "{name}",
+          "description": "Tila luetaan tämän osoitteen alta löytyvästä tiedostosta {file}.",
+          "data": {
+            "url": "Osoite"
+          }
+        }
+      },
+      "error": {
+        "feeder_unreachable": "Syöttäjän tilaa ei voitu lukea. Tarkista osoite ja että syöttäjä on käynnissä.",
+        "service_unreachable": "Palveluun ei saatu yhteyttä. Yritä myöhemmin uudelleen."
+      },
+      "abort": {
+        "all_feeders_added": "Kaikki integraation tuntemat syöttäjät on jo lisätty.",
+        "no_settings": "Syöttäjällä {name} ei ole muutettavia asetuksia.",
+        "reconfigure_successful": "Syöttäjä tallennettu."
+      }
     }
   },
   "selector": {
@@ -143,6 +206,27 @@
       },
       "nearest_aircraft": {
         "name": "Lähin ilma-alus"
+      },
+      "reported_aircraft": {
+        "name": "Raportoidut ilma-alukset",
+        "unit_of_measurement": "ilma-alusta"
+      },
+      "mlat_peers": {
+        "name": "MLAT-vertaiset",
+        "unit_of_measurement": "vertaista"
+      },
+      "mlat_status": {
+        "name": "MLAT",
+        "state": {
+          "synchronized": "Synkronoitu",
+          "not_synchronized": "Ei synkronoitu",
+          "off": "Ei käytössä"
+        }
+      }
+    },
+    "binary_sensor": {
+      "feeder_connection": {
+        "name": "Yhteys"
       }
     },
     "event": {

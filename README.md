@@ -28,6 +28,9 @@ health has a card of its own, the [receiver card](#receiver-card), which comes w
 A receiver hears only what its antenna can see. A feed can add the aircraft [adsb.fi](https://adsb.fi/) knows around
 the same area, from the receivers of its community, so the map shows the traffic your own antenna misses.
 
+A receiver that also feeds Flightradar24, FlightAware, adsb.fi or adsb.lol can show whether those feeds are up, as
+[feeders](#feeder) under the receiver, which the receiver card lists by itself.
+
 ## Installation
 
 ### With the Marketplace
@@ -89,6 +92,29 @@ unavailable when the aircraft were last written more than 2 minutes ago, and the
 were more than 3 minutes ago. A stopped receiver's last aircraft go at the feed's first update more than two minutes
 after it stopped, at most about two and a quarter minutes at the default interval. The margins allow for the
 receiver's clock to differ a little from Home Assistant's.
+
+### Feeder
+
+Add one from the integration page with **Add feeder**, and pick the network your receiver feeds. Each network can be
+added once for each receiver. A feeder is a device under the receiver's, with [two sensors](#feeders), and is added
+once its status can be read, connected or not.
+
+| Feeder        | What is read                                                                                                                                                                                          | Update interval |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Flightradar24 | `monitor.json` from fr24feed's own web page, usually on port 8754, whose address you give.                                                                                                            | 1 minute        |
+| FlightAware   | `status.json` from the web server that serves piaware's status, whose address you give. PiAware's own SD card image serves it at its root. The piaware package installed on its own doesn't serve it. | 1 minute        |
+| adsb.fi       | What adsb.fi receives from your address, from its `/v1/myip`.                                                                                                                                         | 2 minutes       |
+| adsb.lol      | What adsb.lol receives from your address, from its `/0/me`. adsb.lol allows 500 such requests a day.                                                                                                  | 5 minutes       |
+
+adsb.fi and adsb.lol know a feed only by the public address it connects from, and answer for the address Home
+Assistant's request comes from. So their status is your receiver's only when Home Assistant and the receiver reach the
+internet through the same address. With Home Assistant behind a VPN, or elsewhere, they show what feeds from that other
+address, usually nothing. Two receivers behind one address show the same status, with the MLAT peers of the first feed
+the service lists. Each receiver's adsb.lol feeder asks on its own, so two of them behind one address make 576 requests
+a day, over adsb.lol's limit. Add adsb.lol to one receiver only.
+
+The address of Flightradar24 or FlightAware can be changed with **Reconfigure** on the feeder's row. adsb.fi and
+adsb.lol have nothing to change.
 
 ## Sensors
 
@@ -166,6 +192,20 @@ address, `callsign`, `registration`, `type`, `squawk`, `military`, `distance_km`
 altitude unit, `heading`, `latitude` and `longitude`, those the aircraft has. It is unknown while no aircraft in the
 feed is in the air.
 
+### Feeders
+
+Every feeder has a connection sensor and one more, named after the feeder.
+
+| Sensor            | Feeder            | Description                                                                                                                                                |
+| ----------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Connection        | all               | On while fr24feed's feed is connected, piaware is logged in to FlightAware, or adsb.fi or adsb.lol receives a feed from your address                       |
+| Aircraft reported | Flightradar24     | The aircraft fr24feed reports it is tracking                                                                                                               |
+| MLAT peers        | adsb.fi, adsb.lol | The receivers near enough, and in sync with yours, for multilateration. Unknown for a feed without MLAT                                                    |
+| MLAT              | FlightAware       | Synchronised, Not synchronised (while starting, or out of sync with the receivers near it), or Off (MLAT turned off in piaware, or its client not running) |
+
+A feeder that can't be read is unavailable. piaware's web server goes on serving the last status piaware wrote after
+piaware stops, so FlightAware's sensors become unavailable once the status was last written more than 2 minutes ago.
+
 ## Events
 
 Every feed has an event entity that fires when an aircraft in it:
@@ -232,8 +272,9 @@ place: messages and positions coming in, the aircraft tracked with and without a
 last quarter of an hour, and how far the signal rises above the noise. A curve of the aircraft tracked over the last day
 shows whether a quiet moment is the time of day or something new. Under them are the aircraft the receiver hears.
 
-Most receivers also feed Flightradar24 or another network through a feeder of its own, such as fr24feed. Its status can
-be added as rows on a tab of their own, from whatever entities you have for it.
+Most receivers also feed Flightradar24 or another network. The [feeders](#feeder) added to the receiver are shown as
+rows on a tab of their own by themselves, and a network the integration doesn't know can be added there from whatever
+entities you have for it.
 
 The compact layout puts the receiver on one row with a small curve, for a corner of another view.
 
@@ -249,7 +290,7 @@ itself, and the log says which line to add, change or remove.
 | `device`      | string | The receiver's device                                                                                                                                                                                                                                                                                                    | required                                                                        |
 | `name`        | string | Replaces the receiver's name                                                                                                                                                                                                                                                                                             |                                                                                 |
 | `layout`      | string | `full`, or `compact` for one row                                                                                                                                                                                                                                                                                         | `full`                                                                          |
-| `feeders`     | list   | Other feeders' status as rows on a tab of their own, in `full` only                                                                                                                                                                                                                                                      |                                                                                 |
+| `feeders`     | list   | More feeders' status as rows on the feeders' tab, in `full` only, after the [feeders](#feeder) added to the receiver, which are shown without it                                                                                                                                                                         |                                                                                 |
 | `height_mode` | string | How tall the card is, in `full` only. `auto` fits its content, `fixed` keeps it at `height`, `max` lets it grow up to `max_height`. In `fixed` and `max` the aircraft's or feeders' rows scroll (see [Sizes](#sizes)). A height in grid rows, set in the layout tab of a sections view, is used instead                  | `fixed` when `height` is set, `max` when only `max_height` is, otherwise `auto` |
 | `height`      | number | The card's height in pixels, for `fixed`                                                                                                                                                                                                                                                                                 |                                                                                 |
 | `max_height`  | number | The card's greatest height in pixels, for `max`                                                                                                                                                                                                                                                                          |                                                                                 |
@@ -295,7 +336,8 @@ inside, even in a sections view.
   says whether its position is known, and one without a position is dimmed. The list is read with
   [`adsb_live.get_receiver_aircraft`](#adsb_liveget_receiver_aircraft) every 10 seconds, and only while the aircraft
   are shown.
-- **The feeders**, a row each.
+- **The feeders**, a row each: those added to the receiver by name, then those of `feeders`. A feeder added to the
+  receiver is named after its device, and listed once even when `feeders` names it too.
 
 In the compact layout the row shows the status, the aircraft tracked, those with a position and the messages per
 second, with the curve on the right. Clicking it opens the aircraft tracked sensor. It has no list of aircraft.
@@ -381,16 +423,16 @@ actions:
         {{ trigger.to_state.attributes.distance_km }} km away.
 ```
 
-The receiver card with Flightradar24 as a row under it. fr24feed's own status page, `monitor.json` on port 8754, can be
-read into Home Assistant with a REST sensor, and its `feed_status` turned into a connectivity binary sensor:
+The receiver card with a feeder the integration doesn't know as a row of its own, after the feeders added to the
+receiver, from a connectivity binary sensor and a sensor of your own:
 
 ```yaml
 type: custom:adsb-receiver-card
 device: 0123456789abcdef0123456789abcdef
 feeders:
-  - entity: binary_sensor.fr24feed_link
-    name: Flightradar24
-    detail: sensor.fr24feed_reported_aircraft
+  - entity: binary_sensor.radarbox_link
+    name: RadarBox
+    detail: sensor.radarbox_reported_aircraft
 ```
 
 The receiver on one row, for a corner of another view:
@@ -435,6 +477,9 @@ from [Planespotters](https://www.planespotters.net/). Under its terms each photo
 shown large, links to its page there, its answers are kept for a day at most, and the picture is loaded by the browser
 that shows it, straight from Planespotters, never stored or passed on by the integration. The requests carry the same
 User-Agent as adsb.fi's, and the photo's request carries the aircraft's address.
+
+A feeder's status is asked from adsb.fi and adsb.lol with the same User-Agent. fr24feed's `monitor.json` also holds
+the feeder's sharing key. The integration reads only the feed's status and the aircraft reported from it.
 
 The receiver card shows the integration's sensors, and its curve comes from Home Assistant's own statistics of them. It
 fetches nothing from outside Home Assistant.

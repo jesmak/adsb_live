@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from time import monotonic
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
@@ -35,11 +35,14 @@ from .aircraft import (
     type_kinds,
     updates_to_hold,
 )
-from .api import AdsbError, AdsbFiClient, DetailsClient, ReceiverClient
+from .api import AdsbError, AdsbFiClient, DetailsClient, ReceiverClient, without_login
 from .const import CONF_REFRESH_SECONDS, DOMAIN, STATS_REFRESH_SECONDS
 from .geo import METRES_PER_FOOT
 from .health import receiver_health
 from .texts import Texts
+
+if TYPE_CHECKING:
+    from .feeders import FeederCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,12 +116,24 @@ class Receiver:
         return cls(url, str(version).split(" ")[0] if version else None, position)
 
 
+def receiver_device_info(entry: ConfigEntry, receiver: Receiver) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry.entry_id)},
+        name=entry.title,
+        manufacturer="readsb",
+        sw_version=receiver.version,
+        configuration_url=without_login(receiver.url),
+    )
+
+
 @dataclass
 class AdsbRuntimeData:
     receiver_client: ReceiverClient
     adsb_fi: AdsbFiClient
     details: DetailsClient
     receiver: Receiver
+    # The receiver's device in the registry, which the feeders' devices are under.
+    receiver_device_id: str
     texts: Texts
     # "m" or "ft", for altitudes and vertical rates in the feeds.
     altitude_unit: str
@@ -126,6 +141,7 @@ class AdsbRuntimeData:
     heard: ReceiverAircraft
     types: TypeKinds
     feeds: dict[str, FeedCoordinator] = field(default_factory=dict)
+    feeders: dict[str, FeederCoordinator] = field(default_factory=dict)
 
 
 type AdsbConfigEntry = ConfigEntry[AdsbRuntimeData]

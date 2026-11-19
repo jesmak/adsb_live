@@ -102,6 +102,69 @@
       "abort": {
         "reconfigure_successful": "Feed saved."
       }
+    },
+    "feeder": {
+      "entry_type": "Feeder",
+      "initiate_flow": {
+        "user": "Add feeder",
+        "reconfigure": "Edit feeder"
+      },
+      "step": {
+        "user": {
+          "title": "Feeder",
+          "description": "Choose the service your receiver feeds.",
+          "menu_options": {
+            "flightradar24": "Flightradar24",
+            "flightaware": "FlightAware",
+            "adsb_fi": "adsb.fi",
+            "adsb_lol": "adsb.lol"
+          }
+        },
+        "flightradar24": {
+          "title": "Flightradar24",
+          "description": "fr24feed's status is read from its own web server, from the file {file} it serves.",
+          "data": {
+            "url": "Address"
+          },
+          "data_description": {
+            "url": "The address of fr24feed's web page, usually on port 8754."
+          }
+        },
+        "flightaware": {
+          "title": "FlightAware",
+          "description": "piaware's status is read from {file}.",
+          "data": {
+            "url": "Address"
+          },
+          "data_description": {
+            "url": "The address of the web server that has {file}."
+          }
+        },
+        "adsb_fi": {
+          "title": "adsb.fi",
+          "description": "adsb.fi tells which feeds it receives from the same IP address your Home Assistant's request comes from. The status is read every 2 minutes."
+        },
+        "adsb_lol": {
+          "title": "adsb.lol",
+          "description": "adsb.lol tells which feeds it receives from the same IP address your Home Assistant's request comes from. The status is read every 5 minutes."
+        },
+        "reconfigure": {
+          "title": "{name}",
+          "description": "The status is read from the file {file} under this address.",
+          "data": {
+            "url": "Address"
+          }
+        }
+      },
+      "error": {
+        "feeder_unreachable": "The feeder's status couldn't be read. Check the address, and that the feeder is running.",
+        "service_unreachable": "The service couldn't be reached. Try again later."
+      },
+      "abort": {
+        "all_feeders_added": "Every feeder the integration knows has already been added.",
+        "no_settings": "{name} has no settings to change.",
+        "reconfigure_successful": "Feeder saved."
+      }
     }
   },
   "selector": {
@@ -143,6 +206,27 @@
       },
       "nearest_aircraft": {
         "name": "Nearest aircraft"
+      },
+      "reported_aircraft": {
+        "name": "Aircraft reported",
+        "unit_of_measurement": "aircraft"
+      },
+      "mlat_peers": {
+        "name": "MLAT peers",
+        "unit_of_measurement": "peers"
+      },
+      "mlat_status": {
+        "name": "MLAT",
+        "state": {
+          "synchronized": "Synchronised",
+          "not_synchronized": "Not synchronised",
+          "off": "Off"
+        }
+      }
+    },
+    "binary_sensor": {
+      "feeder_connection": {
+        "name": "Connection"
       }
     },
     "event": {

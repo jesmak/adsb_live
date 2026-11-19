@@ -193,8 +193,9 @@ def receiver_entry(
     url: str = RECEIVER_URL,
     feed: dict[str, Any] | None = None,
     disabled: bool = False,
+    feeders: tuple[ConfigSubentryData, ...] = (),
 ) -> MockConfigEntry:
-    """A receiver with feeds around Tampere: "Aircraft near Tampere", then "Aircraft near Tampere 2" and so on.
+    """A receiver with feeds around Tampere: "Aircraft near Tampere", then "Aircraft near Tampere 2" and so on, and `feeders`.
 
     The feeds have the form's defaults, apart from adsb.fi and colours, unless `feed` gives all their settings.
     """
@@ -223,7 +224,8 @@ def receiver_entry(
                 data=data,
             )
             for number in range(1, feeds + 1)
-        ],
+        ]
+        + list(feeders),
     )
     entry.add_to_hass(hass)
     return entry

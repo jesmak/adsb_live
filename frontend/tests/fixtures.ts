@@ -76,4 +76,26 @@ export function hass(values: Partial<Record<keyof typeof SENSOR_IDS, string>> = 
     };
 }
 
+/**
+ * A feeder added to `receiver` in the integration, as ADS-B Live 1.5.0 registers it: a device under the receiver's with a
+ * connection sensor and a detail sensor. The device's id and the entities' are made from `key`.
+ */
+export function addFeeder(
+    state: HomeAssistant,
+    key: string,
+    name: string,
+    connected: string,
+    detail: { key: string; state: string; unit?: string },
+    receiver: string = RECEIVER,
+): void {
+    const device = `feeder_${key}`;
+    const connection = `binary_sensor.${key}_connection`;
+    const detailId = `sensor.${key}_${detail.key}`;
+    state.devices![device] = { id: device, name, manufacturer: name, via_device_id: receiver };
+    state.states[connection] = entity(connection, connected, { device_class: "connectivity" });
+    state.states[detailId] = entity(detailId, detail.state, detail.unit ? { unit_of_measurement: detail.unit } : {});
+    state.entities![connection] = { entity_id: connection, device_id: device, platform: "adsb_live", translation_key: "feeder_connection" };
+    state.entities![detailId] = { entity_id: detailId, device_id: device, platform: "adsb_live", translation_key: detail.key };
+}
+
 export { entity };

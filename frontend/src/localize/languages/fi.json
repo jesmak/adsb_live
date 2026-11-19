@@ -69,7 +69,7 @@
         "row_step_full": "Kokonaisiin riveihin",
         "row_step_half": "Puolikkaisiin riveihin",
         "feeders": "Syötteet",
-        "feeders_helper": "Muiden syöttäjien, esimerkiksi Flightradar24:n, tila riveinä omalla välilehdellään. Näkyy täydessä asettelussa.",
+        "feeders_helper": "Muiden syöttäjien tila riveinä omalla välilehdellään. ADS-B Live -integraatiossa vastaanottimelle lisätyt syöttäjät näkyvät automaattisesti. Tähän voit lisätä syöttäjiä muista lähteistä.",
         "feeder_entity": "Tila",
         "feeder_entity_helper": "Onko syöttäjä toiminnassa",
         "feeder_name": "Nimi",
