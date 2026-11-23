@@ -34,7 +34,7 @@ import {
     valueOf,
 } from "./receiver";
 import type { NumberFormat, Point, Status } from "./receiver";
-import { drawnScale, fillLimit, filledHeight, filledStyle, spareRoom, validRowStep } from "./rows";
+import { drawnScale, fillLimit, filledHeight, filledStyle, heldSpare, spareRoom, validRowStep } from "./rows";
 import type { AdsbReceiverCardConfig, FeederConfig } from "./types";
 
 interface CardRegistration {
@@ -259,7 +259,8 @@ export class AdsbReceiverCard extends LitElement {
             this.width = width;
         }
         const limit = fillLimit(this.sizing(), this.layout, this.minimumHeight());
-        if (!limit || card.classList.contains("message")) {
+        const held = !limit && Boolean(heightStyle(this.sizing(), this.layout, this.minimumHeight()));
+        if ((!limit && !held) || card.classList.contains("message")) {
             if (this.filled) this.filled = 0;
             if (this.spare) this.spare = 0;
             return;
@@ -274,15 +275,26 @@ export class AdsbReceiverCard extends LitElement {
             return;
         }
         const style = getComputedStyle(card);
+        const lastStyle = getComputedStyle(last);
+        // The list's pane grows to whatever height the card has, so it ends where its content does, however far scrolled.
+        const inner = last.classList.contains("pane") ? last.lastElementChild : null;
+        const end = inner
+            ? (inner.getBoundingClientRect().bottom - card.getBoundingClientRect().top) / scale +
+              last.scrollTop +
+              px(lastStyle.paddingBottom)
+            : (last.getBoundingClientRect().bottom - card.getBoundingClientRect().top) / scale;
         // The drawn distance unscaled, as the margin, padding and border added to it are the layout's.
-        let content =
-            (last.getBoundingClientRect().bottom - card.getBoundingClientRect().top) / scale +
-            px(getComputedStyle(last).marginBottom) +
-            px(style.paddingBottom) +
-            px(style.borderBottomWidth);
+        let content = end + px(lastStyle.marginBottom) + px(style.paddingBottom) + px(style.borderBottomWidth);
         // The spare room as drawn now.
         const top = card.querySelector<HTMLElement>(":scope > .top");
         content -= top ? px(getComputedStyle(top).paddingBottom) : 0;
+        // Held to a height, less than a row to spare goes under the top as on filled rows, and more under the list.
+        if (held) {
+            const spare = heldSpare(card.getBoundingClientRect().height / scale, content);
+            if (this.filled) this.filled = 0;
+            if (spare !== this.spare) this.spare = spare;
+            return;
+        }
         const filled = filledHeight(content, this.sizing(), limit);
         const spare = spareRoom(filled, content);
         if (filled !== this.filled) {
@@ -296,7 +308,7 @@ export class AdsbReceiverCard extends LitElement {
     /** The card's inline style: the height it is held to, or the rows it fills up to any limit, with their spare room under the top. */
     private cardStyle(): string {
         const style = filledStyle(this.sizing(), this.layout, this.minimumHeight(), this.filled);
-        return this.filled ? `${style}; --spare: ${this.spare}px` : style;
+        return this.spare ? [style, `--spare: ${this.spare}px`].filter(Boolean).join("; ") : style;
     }
 
     /**

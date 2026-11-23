@@ -55,6 +55,11 @@ async function filled(element: AdsbReceiverCard, end: number, width = 300, heigh
             box(part, top, bottom, width, scale);
         }
     }
+    // The pane grows to the card's height when held, so the card measures to the end of what is in it, over its padding.
+    const pane = element.shadowRoot!.querySelector(".pane");
+    if (pane?.lastElementChild) {
+        box(pane.lastElementChild, 267, end - (parseFloat(computed(pane).paddingBottom) || 0), width, scale);
+    }
     (element as unknown as { fillRows(): void }).fillRows();
     vi.restoreAllMocks();
     await element.updateComplete;
@@ -90,7 +95,7 @@ describe("filling the rows of a sections view", () => {
     // a pane ending at 430 is content of 437 px.
     it.each([
         ["under it, on the rows its content needs", 430, "max-height: 568px; min-height: 440px; --spare: 3px"],
-        ["over it, on the limit rounded down to the rows", 700, "max-height: 568px; min-height: 568px; --spare: 0px"],
+        ["over it, on the limit rounded down to the rows", 700, "max-height: 568px; min-height: 568px"],
     ])("on automatic rows, grows up to a limit %s", async (_name, end, style) => {
         const element = await card({ max_height: 600 }, "grid");
         expect(await filled(element, end)).toBe(style);
@@ -114,6 +119,15 @@ describe("filling the rows of a sections view", () => {
         const element = await card({}, "grid");
         one(element, ".top").style.paddingBottom = "63px";
         expect(await filled(element, 493)).toBe("min-height: 504px; --spare: 63px");
+    });
+
+    // Held to 600 px, the content ends 7 px under the pane's content, as a held card's pane has less room under it: 567 px
+    // leaves 33, which goes under the top as on filled rows, and 507 px leaves 93, a row or more, which goes under the list.
+    it.each([
+        ["less than a row to spare under the top", 560, "height: 600px; --spare: 33px"],
+        ["a row or more to spare under the list", 500, "height: 600px"],
+    ])("held to a height, puts %s", async (_name, end, style) => {
+        expect(await filled(await card({ height: 600 }, "grid"), end, 300, 600)).toBe(style);
     });
 
     it("fills the compact layout's rows around its one row", async () => {
