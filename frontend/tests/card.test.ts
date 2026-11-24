@@ -1347,6 +1347,16 @@ describe("the editor", () => {
                 saved: { type: "custom:adsb-receiver-card", device: RECEIVER, height_mode: "fixed", height: 300, max_height: 480 },
             },
             {
+                case: "the default scroll indicator",
+                form: { type: "custom:adsb-receiver-card", device: RECEIVER, scroll_indicator: "both" },
+                saved: { type: "custom:adsb-receiver-card", device: RECEIVER },
+            },
+            {
+                case: "the fade alone as the scroll indicator",
+                form: { type: "custom:adsb-receiver-card", device: RECEIVER, scroll_indicator: "fade" },
+                saved: { type: "custom:adsb-receiver-card", device: RECEIVER, scroll_indicator: "fade" },
+            },
+            {
                 case: "a feeder with empty fields",
                 form: {
                     type: "custom:adsb-receiver-card",

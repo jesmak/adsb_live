@@ -1,7 +1,12 @@
+import type { ScrollIndicator } from "./fade";
+
 /** Replaced at build time with the integration's version in manifest.json. */
 declare const __CARD_VERSION__: string;
 
 export const CARD_VERSION = __CARD_VERSION__;
+
+/** A held card's pane shows both its fading edges and a thin scrollbar. */
+export const DEFAULT_SCROLL_INDICATOR: ScrollIndicator = "both";
 
 /** The integration whose receivers the card shows, and the manufacturer its receiver devices have; its map feeds have none. */
 export const PLATFORM = "adsb_live";

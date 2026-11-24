@@ -1,3 +1,4 @@
+import type { ScrollIndicatorConfig } from "./fade";
 import type { LovelaceCardConfig } from "./hass";
 import type { RowStepConfig } from "./rows";
 
@@ -11,7 +12,7 @@ export interface FeederConfig {
     detail?: string;
 }
 
-export interface AdsbReceiverCardConfig extends LovelaceCardConfig, RowStepConfig {
+export interface AdsbReceiverCardConfig extends LovelaceCardConfig, RowStepConfig, ScrollIndicatorConfig {
     /** The receiver's device, from the ADS-B Live integration. */
     device: string;
     /** Replaces the device's name. */

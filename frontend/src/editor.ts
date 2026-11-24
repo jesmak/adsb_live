@@ -1,9 +1,10 @@
-/** The card's visual editor: the receiver, its name, the layout and other feeders' rows. */
+/** The card's visual editor: the receiver, its name, the layout, how a scrolling list shows there is more, and other feeders' rows. */
 import { LitElement, css, html, nothing } from "lit";
 import type { CSSResultGroup, TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 
-import { PLATFORM, RECEIVER_MANUFACTURER } from "./const";
+import { DEFAULT_SCROLL_INDICATOR, PLATFORM, RECEIVER_MANUFACTURER } from "./const";
+import { scrollIndicatorData, scrollIndicatorSchema, tidyScrollIndicator } from "./fade";
 import type { HomeAssistant } from "./hass";
 import { browserLanguage, translate } from "./localize/localize";
 import { rowStepData, rowStepSchema, tidyRowStep } from "./rows";
@@ -35,6 +36,7 @@ function receiverSchema(config: AdsbReceiverCardConfig, text: (key: string) => s
         },
         // The height mode is set in YAML only. The compact layout has none, and so always offers its row step.
         ...rowStepSchema(compact(config) ? withoutHeight(config) : config, text),
+        ...scrollIndicatorSchema(text),
     ];
 }
 
@@ -107,7 +109,10 @@ export class AdsbReceiverCardEditor extends LitElement {
         if (!this.hass || !this.config) {
             return nothing;
         }
-        const data = { layout: "full", ...rowStepData(compact(this.config) ? withoutHeight(this.config) : this.config) };
+        const data = {
+            layout: "full",
+            ...scrollIndicatorData(rowStepData(compact(this.config) ? withoutHeight(this.config) : this.config), DEFAULT_SCROLL_INDICATOR),
+        };
         // Two forms, so that the feeders' helper, which Home Assistant's list of objects doesn't show, sits above the list.
         return html`
             <ha-form
@@ -144,7 +149,7 @@ export class AdsbReceiverCardEditor extends LitElement {
     private valueChanged(event: CustomEvent<{ value: AdsbReceiverCardConfig }>): void {
         // A height left from the full layout does nothing in the compact one, and would hide and drop its row step.
         const value = compact(event.detail.value) ? withoutHeight(event.detail.value) : event.detail.value;
-        const config: AdsbReceiverCardConfig = tidyRowStep(value);
+        const config: AdsbReceiverCardConfig = tidyScrollIndicator(tidyRowStep(value), DEFAULT_SCROLL_INDICATOR);
         const feeders = compactFeeders(config.feeders);
         if (feeders.length) {
             config.feeders = feeders;

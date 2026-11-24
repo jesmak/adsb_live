@@ -9,10 +9,10 @@ import { property, state } from "lit/decorators.js";
 
 import { byHeard, fetchReceiverAircraft, hasReceiverAircraft, heardAgo } from "./aircraft";
 import type { HeardAircraft, ReceiverAircraft } from "./aircraft";
-import { AIRCRAFT_REFRESH_MS, CARD_VERSION, HISTORY_HOURS, HISTORY_REFRESH_MS, RANGE_MINUTES } from "./const";
+import { AIRCRAFT_REFRESH_MS, CARD_VERSION, DEFAULT_SCROLL_INDICATOR, HISTORY_HOURS, HISTORY_REFRESH_MS, RANGE_MINUTES } from "./const";
 import type { SensorKey } from "./const";
 import "./editor";
-import { ScrollFade, fadeStyles } from "./fade";
+import { ScrollFade, fadeStyles, scrollIndicator, validScrollIndicator } from "./fade";
 import type { HomeAssistant } from "./hass";
 import { gridMinRows, heightCardSize, heightStyle, validHeight } from "./height";
 import { fetchStatistics } from "./history";
@@ -114,7 +114,11 @@ export class AdsbReceiverCard extends LitElement {
     constructor() {
         super();
         // Fades the pane's edges while the card is held to a height, through the card's own lifecycle.
-        new ScrollFade(this, () => (this.heightStyle() ? this.renderRoot.querySelectorAll<HTMLElement>("ha-card > .pane") : []));
+        new ScrollFade(
+            this,
+            () => (this.heightStyle() ? this.renderRoot.querySelectorAll<HTMLElement>("ha-card > .pane") : []),
+            () => scrollIndicator(this.config ?? {}, DEFAULT_SCROLL_INDICATOR),
+        );
     }
 
     public static getConfigElement(): HTMLElement {
@@ -135,6 +139,9 @@ export class AdsbReceiverCard extends LitElement {
         }
         if (!validRowStep(config)) {
             throw new Error(translate(browserLanguage(), "common.invalid_row_step"));
+        }
+        if (!validScrollIndicator(config)) {
+            throw new Error(translate(browserLanguage(), "common.invalid_scroll_indicator"));
         }
         if (this.config && this.config.device !== config.device) {
             // Another receiver's aircraft are none of this one's, even while its own are on the way.
