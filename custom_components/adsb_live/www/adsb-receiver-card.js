@@ -2252,7 +2252,7 @@ var AdsbReceiverCard = class extends i4 {
                     display: grid;
                     grid-template-columns: repeat(3, minmax(0, 1fr));
                     align-items: center;
-                    min-height: 42px;
+                    min-height: 41px;
                     text-align: center;
                 }
 
@@ -2287,7 +2287,7 @@ var AdsbReceiverCard = class extends i4 {
                 .figure .label {
                     max-width: 100%;
                     font-size: 12px;
-                    line-height: 15px;
+                    line-height: 14px;
                     color: var(--secondary-text-color);
                 }
 
@@ -2295,7 +2295,7 @@ var AdsbReceiverCard = class extends i4 {
                 .curve {
                     display: block;
                     width: 100%;
-                    min-height: 50px;
+                    min-height: 49px;
                 }
 
                 .plot {
@@ -2379,7 +2379,7 @@ var AdsbReceiverCard = class extends i4 {
                     justify-content: space-between;
                     gap: 8px;
                     font-size: 11px;
-                    line-height: 14px;
+                    line-height: 13px;
                     color: var(--secondary-text-color);
                 }
 
@@ -2387,9 +2387,9 @@ var AdsbReceiverCard = class extends i4 {
                     min-width: 0;
                 }
 
-                /* A line of levels and the bar. */
+                /* A line of levels and the bar, with room between them for the marks that reach over the bar. */
                 .meter {
-                    height: 24px;
+                    height: 26px;
                 }
 
                 .levels {
@@ -2397,7 +2397,7 @@ var AdsbReceiverCard = class extends i4 {
                     justify-content: space-between;
                     gap: 12px;
                     font-size: 12px;
-                    line-height: 16px;
+                    line-height: 14px;
                     color: var(--secondary-text-color);
                 }
 
@@ -2412,8 +2412,21 @@ var AdsbReceiverCard = class extends i4 {
                 .bar {
                     position: relative;
                     height: 8px;
-                    border-radius: 4px;
+                    margin-top: 4px;
+                    border-radius: 2px;
                     background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.08);
+                }
+
+                /* The scale from its least to its most: a thin line through the bar, with a tick at each end. */
+                .bar::before {
+                    content: "";
+                    position: absolute;
+                    inset: 0;
+                    box-sizing: border-box;
+                    border: solid var(--secondary-text-color);
+                    border-width: 0 1px;
+                    background: linear-gradient(var(--secondary-text-color), var(--secondary-text-color)) center / 100% 1px no-repeat;
+                    opacity: 0.5;
                 }
 
                 .gap {
