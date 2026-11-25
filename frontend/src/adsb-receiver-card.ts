@@ -1549,8 +1549,10 @@ export class AdsbReceiverCard extends LitElement {
                     height: 36px;
                 }
 
+                /* 20 px with the line's 16 make the icon's 36, so the row is exactly one row of a sections view. */
                 .compact .name {
                     font-size: 14px;
+                    line-height: 20px;
                 }
 
                 .compact .status {
