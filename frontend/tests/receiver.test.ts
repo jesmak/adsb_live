@@ -204,14 +204,16 @@ describe("the curve", () => {
     const now = 100 * HOUR + 20 * 60_000;
     const start = now - 24 * HOUR;
 
-    it("has each hour's mean at the middle of its hour, and the present value now", () => {
+    it("has each hour's mean at the middle of its hour, the last hour before the window first, and the present value now", () => {
         const rows = [
+            { start: 76 * HOUR - 2 * HOUR, mean: 7, max: 7 },
             { start: 76 * HOUR - HOUR, mean: 9, max: 9 },
             { start: 76 * HOUR, mean: 1.5, max: 3 },
             { start: 99 * HOUR, mean: 2, max: 4 },
             { start: 100 * HOUR, mean: null, max: null },
         ];
         expect(curvePoints(rows, start, now, 3)).toEqual([
+            { time: 75 * HOUR + HOUR / 2, value: 9 },
             { time: 76 * HOUR + HOUR / 2, value: 1.5 },
             { time: 99 * HOUR + HOUR / 2, value: 2 },
             { time: now, value: 3 },
@@ -241,6 +243,9 @@ describe("the curve", () => {
             { time: now, value: 2 },
         ];
         expect(linePath(points, start, now, 100, 10, 4)).toBe("M0.0,9.0L50.0,1.0L100.0,5.0");
+        // A point before the start is where the line comes from: halfway from 0 to 4 at the start.
+        const entering = [{ time: start - 12 * HOUR, value: 0 }, ...points.slice(1)];
+        expect(linePath(entering, start, now, 100, 10, 4)).toBe("M0.0,5.0L50.0,1.0L100.0,5.0");
     });
 
     // A path of one point strokes nothing, so a lone point is a line of no length, which a round cap shows as a dot.

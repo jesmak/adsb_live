@@ -147,8 +147,8 @@ describe("adsb-receiver-card", () => {
     // A refresh that fails keeps the curve the card has, and one that answers replaces it.
     describe("the curve before and after its statistics", () => {
         const NOTHING = { full: "", small: "", lone: false, peak: "" };
-        const LONE = { full: "M360.0,18.0L360.0,18.0", small: "M90.0,16.0L90.0,16.0", lone: true, peak: "huippu 2" };
-        const HOUR = { full: "M180.0,1.0L360.0,18.0", small: "M45.0,1.0L90.0,16.0", lone: false, peak: "huippu 4" };
+        const LONE = { full: "M360.0,17.0L360.0,17.0", small: "M90.0,16.0L90.0,16.0", lone: true, peak: "huippu 2" };
+        const HOUR = { full: "M180.0,1.0L360.0,17.0", small: "M45.0,1.0L90.0,16.0", lone: false, peak: "huippu 4" };
         it.each([
             { answers: ["pending"], ...NOTHING },
             { answers: ["failed"], ...NOTHING },
@@ -156,7 +156,7 @@ describe("adsb-receiver-card", () => {
             { answers: ["an hour"], ...HOUR },
             // The full layout's kept hour moves left with the clock, as the aircraft's ticks draw it again: 10 minutes of 24
             // hours later, 2.5 px of 360. The compact layout has no aircraft, so nothing draws it again.
-            { answers: ["an hour", "failed"], ...HOUR, full: "M177.5,1.0L360.0,18.0" },
+            { answers: ["an hour", "failed"], ...HOUR, full: "M177.5,1.0L360.0,17.0" },
             { answers: ["an hour", "no hours"], ...LONE },
             { answers: ["failed", "an hour"], ...HOUR },
             { answers: ["no hours", "an hour"], ...HOUR },
@@ -425,7 +425,7 @@ describe("adsb-receiver-card", () => {
             statistic_ids: [SENSOR_IDS.aircraft_tracked],
             period: "hour",
         });
-        expect(element.shadowRoot!.querySelector(".curve path")?.getAttribute("d")).toBe("M15.0,35.0L180.0,12.3L360.0,23.7");
+        expect(element.shadowRoot!.querySelector(".curve path")?.getAttribute("d")).toBe("M15.0,33.0L180.0,11.7L360.0,22.3");
         expect(element.shadowRoot!.querySelector(".curve path")?.classList.contains("lone")).toBe(false);
     });
 

@@ -43,10 +43,10 @@ async function filled(element: AdsbReceiverCard, end: number, width = 300, heigh
     );
     box(haCard, 0, height, width, scale);
     for (const [selector, top, bottom] of [
-        [".top", 11, 75],
-        [".figures", 75, 139],
-        [".curve", 139, 203],
-        [".meter", 203, 235],
+        [".top", 15, 55],
+        [".figures", 71, 113],
+        [".curve", 129, 179],
+        [".meter", 195, 219],
         [".tabs", 235, 267],
         [".pane", 267, end],
     ] as const) {
@@ -74,8 +74,8 @@ afterEach(() => {
 describe("filling the rows of a sections view", () => {
     // The content ends 11 px of padding under the pane: at 441 px with it ending at 430.
     it.each([
-        ["whole rows, with the spare room under the top", {}, "min-height: 504px; --spare: 63px"],
-        ["half rows", { row_step: "half" as const }, "min-height: 472px; --spare: 31px"],
+        ["whole rows", {}, "min-height: 504px"],
+        ["half rows", { row_step: "half" as const }, "min-height: 472px"],
     ])("on automatic rows, ends on %s", async (_name, config, style) => {
         const element = await card(config, "grid");
         expect(await filled(element, 430)).toBe(style);
@@ -83,18 +83,18 @@ describe("filling the rows of a sections view", () => {
 
     it("takes the next row for a content a fraction of a pixel over one", async () => {
         const element = await card({}, "grid");
-        expect(await filled(element, 429.4)).toBe("min-height: 504px; --spare: 63px");
+        expect(await filled(element, 429.4)).toBe("min-height: 504px");
     });
 
     it("measures a card drawn scaled, as a dialog opening draws it, in the layout's pixels", async () => {
         const element = await card({}, "grid");
-        expect(await filled(element, 430, 300, 56, 0.8)).toBe("min-height: 504px; --spare: 63px");
+        expect(await filled(element, 430, 300, 56, 0.8)).toBe("min-height: 504px");
     });
 
     // The limit is rounded down to the rows: 600 px to 568. Held, the pane's end reaches 4 px into the card's padding, so
     // a pane ending at 430 is content of 437 px.
     it.each([
-        ["under it, on the rows its content needs", 430, "max-height: 568px; min-height: 440px; --spare: 3px"],
+        ["under it, on the rows its content needs", 430, "max-height: 568px; min-height: 440px"],
         ["over it, on the limit rounded down to the rows", 700, "max-height: 568px; min-height: 568px"],
     ])("on automatic rows, grows up to a limit %s", async (_name, end, style) => {
         const element = await card({ max_height: 600 }, "grid");
@@ -104,7 +104,7 @@ describe("filling the rows of a sections view", () => {
     it("fills the compact layout's rows whatever height mode is left from the full layout", async () => {
         const element = await card({ layout: "compact", max_height: 40 }, "grid");
         box(one(element, ".row"), 0, 60);
-        expect(await filled(element, 0)).toBe("min-height: 120px; --spare: 60px");
+        expect(await filled(element, 0)).toBe("min-height: 120px");
     });
 
     it("measures to its last part's end, never an element a theme adds after it", async () => {
@@ -112,30 +112,23 @@ describe("filling the rows of a sections view", () => {
         const added = document.createElement("div");
         box(added, 0, 900);
         one(element, "ha-card").append(added);
-        expect(await filled(element, 430)).toBe("min-height: 504px; --spare: 63px");
+        expect(await filled(element, 430)).toBe("min-height: 504px");
     });
 
-    it("doesn't count the spare room it has drawn under the top again", async () => {
-        const element = await card({}, "grid");
-        one(element, ".top").style.paddingBottom = "63px";
-        expect(await filled(element, 493)).toBe("min-height: 504px; --spare: 63px");
-    });
-
-    // Held to 600 px, the content ends 7 px under the pane's content, as a held card's pane has less room under it: 567 px
-    // leaves 33, which goes under the top as on filled rows, and 507 px leaves 93, a row or more, which goes under the list.
+    // The room a held card's pane doesn't need stays under it, so the parts above keep their places whichever tab is shown.
     it.each([
-        ["less than a row to spare under the top", 560, "height: 600px; --spare: 33px"],
-        ["a row or more to spare under the list", 500, "height: 600px"],
-    ])("held to a height, puts %s", async (_name, end, style) => {
-        expect(await filled(await card({ height: 600 }, "grid"), end, 300, 600)).toBe(style);
+        ["less than a row", 560],
+        ["a row or more", 500],
+    ])("held to a height, leaves %s to spare under the pane", async (_name, end) => {
+        expect(await filled(await card({ height: 600 }, "grid"), end, 300, 600)).toBe("height: 600px");
     });
 
     it("fills the compact layout's rows around its one row", async () => {
         const element = await card({ layout: "compact" }, "grid");
         box(one(element, ".row"), 0, 60);
-        expect(await filled(element, 0)).toBe("min-height: 120px; --spare: 60px");
+        expect(await filled(element, 0)).toBe("min-height: 120px");
         box(one(element, ".row"), 0, 54);
-        expect(await filled(element, 0)).toBe("min-height: 56px; --spare: 2px");
+        expect(await filled(element, 0)).toBe("min-height: 56px");
     });
 
     it.each([
@@ -146,24 +139,24 @@ describe("filling the rows of a sections view", () => {
         expect(await filled(element, 200, 300, 440)).toBe(style);
     });
 
-    // Without a pane, the card ends at its last part, as the test boxes have them: the meter at 235, the curve at 203, the
-    // figures at 139 and the top at 75, each with 11 px of padding under it and filled up to whole rows.
+    // Without a pane, the card ends at its last part, as the test boxes have them: the meter at 219, the curve at 179, the
+    // figures at 113 and the top at 55, each with its gap and 11 px of padding under it and filled up to whole rows.
     it.each([
-        ["the meter", {}, ".meter", "min-height: 248px; --spare: 2px"],
-        ["the meter, without a curve", { tracked: false }, ".meter", "min-height: 248px; --spare: 2px"],
+        ["the meter", {}, ".meter", "min-height: 248px"],
+        ["the meter, without a curve", { tracked: false }, ".meter", "min-height: 248px"],
         [
             "the curve, without a meter, as for a receiver fed over the network",
             { noise: "unknown", signal: "unknown" },
             ".curve",
-            "min-height: 248px; --spare: 34px",
+            "min-height: 248px",
         ],
         [
             "the figures, without a meter or a curve",
             { noise: "unknown", signal: "unknown", tracked: false },
             ".figures",
-            "min-height: 184px; --spare: 34px",
+            "min-height: 184px",
         ],
-        ["the top, for an unavailable receiver", { positions_per_minute: "unavailable" }, ".top", "min-height: 120px; --spare: 34px"],
+        ["the top, for an unavailable receiver", { positions_per_minute: "unavailable" }, ".top", "min-height: 120px"],
     ] as Array<[string, Record<string, unknown>, string, string]>)(
         "measures to the end of %s when there is no pane",
         async (_name, values, last, style) => {
@@ -204,22 +197,18 @@ describe("the room a card held to more than it needs leaves", () => {
 });
 
 describe("the least height a held card keeps to", () => {
-    // The fixed part, the tabs and three steps of the pane, at any width its 9 columns allow, and below 160 px, where the
-    // curve's caption wraps, more. Without feeders there are no tabs, and the same rows hold three aircraft.
+    // The fixed part, the tabs and three steps of the pane, at any width, as a held card's texts keep to one line. Without
+    // feeders there are no tabs, and the same rows hold three aircraft.
     it.each([
         ["before it is drawn", undefined, true, "height: 376px", 6],
         ["at a full section's width", 483, true, "height: 376px", 6],
         ["at the narrowest its columns allow", 214, true, "height: 376px", 6],
-        ["at 160 px, the last width before the caption wraps", 160, true, "height: 376px", 6],
-        ["at 159 px, where the caption wraps", 159, true, "height: 383px", 7],
-        ["narrower than its columns allow", 150, true, "height: 383px", 7],
+        ["narrower than its columns allow", 150, true, "height: 376px", 6],
         ["before it is drawn, without feeders", undefined, false, "height: 344px", 6],
         ["at a full section's width, without feeders", 483, false, "height: 344px", 6],
-        ["at 160 px, without feeders", 160, false, "height: 344px", 6],
-        ["at 159 px, without feeders", 159, false, "height: 351px", 6],
         ["at the narrowest its columns allow, without feeders", 214, false, "height: 344px", 6],
-        ["narrower than its columns allow, without feeders", 150, false, "height: 351px", 6],
-    ])("is the worst any width from its own up needs, %s", async (_name, width, withFeeders, style, rows) => {
+        ["narrower than its columns allow, without feeders", 150, false, "height: 344px", 6],
+    ])("is the same at any width, %s", async (_name, width, withFeeders, style, rows) => {
         const element = await card({ height: 100, ...(withFeeders ? { feeders: [{ entity: "binary_sensor.fr24_link" }] } : {}) }, "grid");
         if (width) {
             await filled(element, 120, width, 100);

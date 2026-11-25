@@ -167,13 +167,16 @@ const HALF_HOUR = 30 * 60_000;
 
 /**
  * The curve's points: each hour's mean at the middle of its hour, inside the window, and the sensor's present value at
- * the end, so the curve reaches now although the current hour has no statistics yet.
+ * the end, so the curve reaches now although the current hour has no statistics yet. The last hour before the window
+ * comes first when the recorder has it, as where the line comes in from at the window's start.
  */
 export function curvePoints(rows: StatisticRow[], start: number, now: number, current: number | null): Point[] {
-    const points = rows
-        .filter((row) => typeof row.mean === "number" && row.start + HALF_HOUR >= start && row.start <= now)
+    const all = rows
+        .filter((row) => typeof row.mean === "number" && row.start <= now)
         .map((row) => ({ time: Math.min(row.start + HALF_HOUR, now), value: row.mean as number }))
         .sort((one, other) => one.time - other.time);
+    const first = all.findIndex((point) => point.time >= start);
+    const points = first < 0 ? all.slice(-1) : all.slice(Math.max(first - 1, 0));
     if (current !== null) {
         points.push({ time: now, value: current });
     }
@@ -186,7 +189,10 @@ export function peakOf(rows: StatisticRow[], start: number, current: number | nu
     return Math.max(0, current ?? 0, ...maximums);
 }
 
-/** An SVG path through the points, across a box of the given size, with `max` at the top. */
+/**
+ * An SVG path through the points, across a box of the given size, with `max` at the top. A first point before the start
+ * is where the line comes from: the line begins at the start, at its value there.
+ */
 export function linePath(points: Point[], start: number, end: number, width: number, height: number, max: number): string {
     if (!points.length || end <= start) {
         return "";
@@ -195,6 +201,11 @@ export function linePath(points: Point[], start: number, end: number, width: num
     // The line keeps a pixel from the box's edges, so a stroke at zero or at the peak isn't cut in half.
     const y = (value: number) => 1 + (1 - Math.min(Math.max(value, 0), max) / max) * (height - 2);
     // A path of one point strokes nothing, so a lone point is a line of no length, which the round cap shows as a dot.
-    const drawn = points.length === 1 ? [points[0], points[0]] : points;
+    const [lead, next] = points;
+    const entering = next && lead.time < start && next.time > lead.time;
+    const edge = entering
+        ? { time: start, value: lead.value + ((next.value - lead.value) * (start - lead.time)) / (next.time - lead.time) }
+        : lead;
+    const drawn = points.length === 1 ? [edge, edge] : [edge, ...points.slice(1)];
     return drawn.map((point, index) => `${index ? "L" : "M"}${x(point.time).toFixed(1)},${y(point.value).toFixed(1)}`).join("");
 }

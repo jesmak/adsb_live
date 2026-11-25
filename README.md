@@ -351,9 +351,10 @@ a tooltip, so the card's height depends only on its width. On a narrow card the
 readsb version is left out, and the meter, and the aircraft's tab when there are tabs, use short names. In the compact
 layout the curve is left out below 280 px, so the texts keep their room.
 
-The full layout's parts are each one or two half rows of a sections view tall, an aircraft and a feeder half a row, so
-the card fills rows exactly while nothing wraps. On automatic rows in a sections view the card ends on whole rows, with any room left over
-under the receiver's name, so the cards under it stay on the rows. With `row_step: half` it ends on half rows instead.
+The full layout's parts down to the list add up to half rows of a sections view, with the same gap between them, and
+an aircraft and a feeder are half a row each, so the card fills rows exactly while nothing wraps. On automatic rows in a
+sections view the card ends on whole rows, so the cards under it stay on the rows. Any room left over stays under the
+list, so nothing above it moves when the other tab is picked. With `row_step: half` it ends on half rows instead.
 With `max_height`, it grows the same way up to that height rounded down to its rows, so it stays on the rows when it
 reaches it too. The compact layout is one row on a full section.
 

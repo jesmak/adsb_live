@@ -1045,13 +1045,6 @@ function drawnScale(card) {
 function filledHeight(content, config, limit = Infinity) {
   return Math.min(Math.max(1, Math.ceil((content - SLACK_PX + ROW_GAP_PX) / step(config))) * step(config) - ROW_GAP_PX, limit);
 }
-function spareRoom(filled, content) {
-  return Math.max(0, Math.floor(filled - content + SLACK_PX));
-}
-function heldSpare(held, content) {
-  const spare = spareRoom(held, content);
-  return spare < ROW_PX ? spare : 0;
-}
 function fillLimit(config, layout, minimum = 0) {
   const rows = config.grid_options ? config.grid_options.rows : config.layout_options?.grid_rows;
   if (layout !== "grid" || typeof rows === "number") {
@@ -1379,7 +1372,9 @@ function feederState(entity) {
 }
 var HALF_HOUR = 30 * 6e4;
 function curvePoints(rows, start, now, current) {
-  const points = rows.filter((row) => typeof row.mean === "number" && row.start + HALF_HOUR >= start && row.start <= now).map((row) => ({ time: Math.min(row.start + HALF_HOUR, now), value: row.mean })).sort((one, other) => one.time - other.time);
+  const all = rows.filter((row) => typeof row.mean === "number" && row.start <= now).map((row) => ({ time: Math.min(row.start + HALF_HOUR, now), value: row.mean })).sort((one, other) => one.time - other.time);
+  const first = all.findIndex((point) => point.time >= start);
+  const points = first < 0 ? all.slice(-1) : all.slice(Math.max(first - 1, 0));
   if (current !== null) {
     points.push({ time: now, value: current });
   }
@@ -1395,19 +1390,20 @@ function linePath(points, start, end, width, height, max) {
   }
   const x2 = (time) => (Math.min(Math.max(time, start), end) - start) / (end - start) * width;
   const y3 = (value) => 1 + (1 - Math.min(Math.max(value, 0), max) / max) * (height - 2);
-  const drawn = points.length === 1 ? [points[0], points[0]] : points;
+  const [lead, next] = points;
+  const entering = next && lead.time < start && next.time > lead.time;
+  const edge = entering ? { time: start, value: lead.value + (next.value - lead.value) * (start - lead.time) / (next.time - lead.time) } : lead;
+  const drawn = points.length === 1 ? [edge, edge] : [edge, ...points.slice(1)];
   return drawn.map((point, index) => `${index ? "L" : "M"}${x2(point.time).toFixed(1)},${y3(point.value).toFixed(1)}`).join("");
 }
 
 // src/adsb-receiver-card.ts
 var HOUR = 36e5;
-var CURVE = { width: 360, height: 36 };
+var CURVE = { width: 360, height: 34 };
 var SMALL_CURVE = { width: 90, height: 32 };
+var CURVE_GRID = [0.25, 0.5, 0.75];
 var TABS_PX = 32;
-var LEAST_PX = [
-  [160, 376],
-  [0, 383]
-];
+var LEAST_PX = 376;
 var px = (value) => parseFloat(value) || 0;
 var AdsbReceiverCard = class extends i4 {
   constructor() {
@@ -1418,9 +1414,7 @@ var AdsbReceiverCard = class extends i4 {
     this.clock = Date.now();
     this.aircraftReadAt = 0;
     this.aircraftReading = false;
-    this.width = 0;
     this.filled = 0;
-    this.spare = 0;
     this.resizes = typeof ResizeObserver === "undefined" ? void 0 : new ResizeObserver(() => this.measureSoon());
     /**
      * Has a held card's top fade start under the list's column heads while they are stuck at the top of the pane, rather
@@ -1550,9 +1544,8 @@ var AdsbReceiverCard = class extends i4 {
   /**
    * In a sections view whose rows are left automatic, the card takes the whole rows its content needs, or the half rows
    * with `row_step: half`, so the cards under it stay on the rows, up to the limit of a card that grows up to one. The
-   * room left over goes under the top, in the compact
-   * layout around its row. Held to a height, the room the pane doesn't need stays at its bottom, so the fixed part
-   * doesn't move when the other tab is picked.
+   * room left over goes under the pane, in the compact layout around its row, so the fixed part and the tabs stay where
+   * they are when the other tab is picked. Held to a height, the room the pane doesn't need stays at its bottom too.
    */
   fillRows() {
     const card = this.renderRoot.querySelector("ha-card");
@@ -1560,15 +1553,9 @@ var AdsbReceiverCard = class extends i4 {
       return;
     }
     const scale = drawnScale(card);
-    const width = Math.round(card.getBoundingClientRect().width / scale);
-    if (width !== this.width) {
-      this.width = width;
-    }
     const limit = fillLimit(this.sizing(), this.layout, this.minimumHeight());
-    const held = !limit && Boolean(heightStyle(this.sizing(), this.layout, this.minimumHeight()));
-    if (!limit && !held || card.classList.contains("message")) {
+    if (!limit || card.classList.contains("message")) {
       if (this.filled) this.filled = 0;
-      if (this.spare) this.spare = 0;
       return;
     }
     const parts = card.querySelectorAll(
@@ -1582,28 +1569,15 @@ var AdsbReceiverCard = class extends i4 {
     const lastStyle = getComputedStyle(last);
     const inner = last.classList.contains("pane") ? last.lastElementChild : null;
     const end = inner ? (inner.getBoundingClientRect().bottom - card.getBoundingClientRect().top) / scale + last.scrollTop + px(lastStyle.paddingBottom) : (last.getBoundingClientRect().bottom - card.getBoundingClientRect().top) / scale;
-    let content = end + px(lastStyle.marginBottom) + px(style.paddingBottom) + px(style.borderBottomWidth);
-    const top = card.querySelector(":scope > .top");
-    content -= top ? px(getComputedStyle(top).paddingBottom) : 0;
-    if (held) {
-      const spare2 = heldSpare(card.getBoundingClientRect().height / scale, content);
-      if (this.filled) this.filled = 0;
-      if (spare2 !== this.spare) this.spare = spare2;
-      return;
-    }
+    const content = end + px(lastStyle.marginBottom) + px(style.paddingBottom) + px(style.borderBottomWidth);
     const filled = filledHeight(content, this.sizing(), limit);
-    const spare = spareRoom(filled, content);
     if (filled !== this.filled) {
       this.filled = filled;
     }
-    if (spare !== this.spare) {
-      this.spare = spare;
-    }
   }
-  /** The card's inline style: the height it is held to, or the rows it fills up to any limit, with their spare room under the top. */
+  /** The card's inline style: the height it is held to, or the rows it fills up to any limit. */
   cardStyle() {
-    const style = filledStyle(this.sizing(), this.layout, this.minimumHeight(), this.filled);
-    return this.spare ? [style, `--spare: ${this.spare}px`].filter(Boolean).join("; ") : style;
+    return filledStyle(this.sizing(), this.layout, this.minimumHeight(), this.filled);
   }
   watched() {
     if (!this.hass || !this.config) {
@@ -1626,7 +1600,7 @@ var AdsbReceiverCard = class extends i4 {
     }
     const now = Date.now();
     try {
-      const rows = await fetchStatistics(hass, id, now - HISTORY_HOURS * HOUR, now);
+      const rows = await fetchStatistics(hass, id, now - (HISTORY_HOURS + 2) * HOUR, now);
       if (this.historyOf === id) {
         this.history = rows;
         this.historyLoaded = true;
@@ -1920,15 +1894,13 @@ var AdsbReceiverCard = class extends i4 {
     return this.heightStyle() !== "";
   }
   /**
-   * The lowest the full layout is held to, in pixels, at any width the card's 9 columns or more allow, or at its measured
-   * width if narrower. The texts above the scroller keep to one line then.
+   * The lowest the full layout is held to, in pixels, at any width. The texts above the scroller keep to one line then.
    */
   minimumHeight() {
     if (this.compact()) {
       return 0;
     }
-    const width = this.width || Infinity;
-    return LEAST_PX.find(([least]) => width >= least)[1] - (this.feederList().length ? 0 : TABS_PX);
+    return LEAST_PX - (this.feederList().length ? 0 : TABS_PX);
   }
   /** Parts of a sentence, each kept whole, so a number never wraps away from its unit. */
   pieces(parts) {
@@ -1961,6 +1933,8 @@ var AdsbReceiverCard = class extends i4 {
     }
     const { path, peak, lone, points, max, start, now } = this.curvePath(sensors.aircraft_tracked, CURVE);
     const hover = this.hover;
+    const past = this.text("curve.past", { hours: formatNumber(HISTORY_HOURS, this.numberFormat(), 0) });
+    const peakText = peak > 0 ? this.text("curve.peak", { value: formatNumber(peak, this.numberFormat(), 0) }) : "";
     return b2`
             <button
                 class="curve"
@@ -1970,7 +1944,10 @@ var AdsbReceiverCard = class extends i4 {
             >
                 <span class="plot">
                     <svg viewBox="0 0 ${CURVE.width} ${CURVE.height}" preserveAspectRatio="none" aria-hidden="true">
-                        <line class="base" x1="0" x2=${CURVE.width} y1=${CURVE.height - 1} y2=${CURVE.height - 1}></line>
+                        ${CURVE_GRID.map(
+      (at) => w`<line class="grid" x1=${CURVE.width * at} x2=${CURVE.width * at} y1="0" y2=${CURVE.height}></line>`
+    )}
+                        <line class="grid" x1="0" x2=${CURVE.width} y1=${CURVE.height / 2} y2=${CURVE.height / 2}></line>
                         <path class=${lone ? "lone" : ""} d=${path}></path>
                     </svg>
                     ${hover ? b2`<span class="dot" style="left: ${hover.x}%; top: ${hover.y}%"></span
@@ -1979,9 +1956,9 @@ var AdsbReceiverCard = class extends i4 {
                                   >` : A}
                 </span>
                 <span class="caption">
-                    <span>${this.text("curve.past", { hours: formatNumber(HISTORY_HOURS, this.numberFormat(), 0) })}</span>
-                    <span>${peak > 0 ? this.text("curve.peak", { value: formatNumber(peak, this.numberFormat(), 0) }) : ""}</span>
-                    <span>${this.text("curve.now")}</span>
+                    <span title=${past}>${past}</span>
+                    <span title=${peakText}>${peakText}</span>
+                    <span title=${this.text("curve.now")}>${this.text("curve.now")}</span>
                 </span>
             </button>
         `;
@@ -2027,7 +2004,16 @@ var AdsbReceiverCard = class extends i4 {
     const points = curvePoints(this.history, start, now, current);
     const peak = peakOf(this.history, start, current);
     const max = Math.max(peak, 4);
-    return { path: linePath(points, start, now, box.width, box.height, max), peak, lone: points.length === 1, points, max, start, now };
+    const inside = points.filter((point) => point.time >= start);
+    return {
+      path: linePath(points, start, now, box.width, box.height, max),
+      peak,
+      lone: points.length === 1,
+      points: inside,
+      max,
+      start,
+      now
+    };
   }
   /** Noise and signal on a line, with short names on a narrow card, and the bar between them. */
   meter(sensors) {
@@ -2145,9 +2131,10 @@ var AdsbReceiverCard = class extends i4 {
 
                 /*
                  * The full layout's parts step in half rows of a sections view, 32 px, so that with its 24 px of padding and
-                 * border the card is 32k − 8 px tall and fills whole or half rows exactly: the top, the figures and the curve
-                 * two steps each, the meter and the tabs one each, and in the pane each aircraft and each feeder a step, and the
-                 * column heads with the room under the last aircraft one more. Held to a height, the texts keep to one line, cut
+                 * border the card is 32k − 8 px tall and fills whole or half rows exactly: the top, the figures, the curve and
+                 * the meter seven steps together, with the same 16 px between each and before the tabs, the tabs one step, and
+                 * in the pane each aircraft and each feeder a step, and the column heads with the room under the last aircraft
+                 * one more. The room the rows leave over stays under the pane, so no part moves when the other tab is picked. Held to a height, the texts keep to one line, cut
                  * short with their whole text as a tooltip, so the card's height depends only on its width. Otherwise they wrap:
                  * the pane's message a half row a line, and the other texts at their own line heights, which fillRows still ends
                  * on the rows.
@@ -2174,6 +2161,7 @@ var AdsbReceiverCard = class extends i4 {
                 ha-card.held .feeder-value,
                 ha-card.held .plane .ident,
                 ha-card.held .plane .sub,
+                ha-card.held .caption span,
                 ha-card.held .pane .message {
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -2191,13 +2179,21 @@ var AdsbReceiverCard = class extends i4 {
                     overflow-wrap: anywhere;
                 }
 
-                /* What the rows leave over goes under the top, as padding, which no neighbour's margin can swallow. */
+                /* The icon is as far from the card's top as from its side. */
                 .top {
                     display: flex;
                     align-items: center;
                     gap: 12px;
-                    min-height: 64px;
-                    padding-bottom: var(--spare, 0px);
+                    min-height: 40px;
+                    margin-top: 4px;
+                }
+
+                /* The same gap under each part of the fixed part, the last one's before the tabs. */
+                .top,
+                .figures,
+                .curve,
+                .meter {
+                    margin-bottom: 16px;
                 }
 
                 .icon {
@@ -2221,6 +2217,7 @@ var AdsbReceiverCard = class extends i4 {
                     display: flex;
                     align-items: baseline;
                     gap: 8px;
+                    line-height: 22px;
                 }
 
                 .name {
@@ -2243,8 +2240,10 @@ var AdsbReceiverCard = class extends i4 {
                     color: var(--secondary-text-color);
                 }
 
+                /* A line height of its own, as the line's 15 px around its larger letters would stretch the line past the icon's height. */
                 .status {
                     font-size: 13px;
+                    line-height: 1;
                     color: var(--receiver-color);
                     white-space: nowrap;
                 }
@@ -2253,7 +2252,7 @@ var AdsbReceiverCard = class extends i4 {
                     display: grid;
                     grid-template-columns: repeat(3, minmax(0, 1fr));
                     align-items: center;
-                    min-height: 64px;
+                    min-height: 42px;
                     text-align: center;
                 }
 
@@ -2274,11 +2273,13 @@ var AdsbReceiverCard = class extends i4 {
                     white-space: nowrap;
                     font-size: 24px;
                     font-weight: var(--ha-font-weight-medium, 500);
-                    line-height: 1.2;
+                    line-height: 27px;
                 }
 
+                /* A line height of its own, as the value's 27 px around its smaller letters would stretch the line. */
                 .unit {
                     font-size: 13px;
+                    line-height: 1;
                     font-weight: var(--ha-font-weight-normal, 400);
                     color: var(--secondary-text-color);
                 }
@@ -2290,19 +2291,20 @@ var AdsbReceiverCard = class extends i4 {
                     color: var(--secondary-text-color);
                 }
 
-                /* The curve and its caption, with room under the caption before the meter. */
+                /* The curve in a box that shows the room it has, and its caption under the box. */
                 .curve {
                     display: block;
-                    box-sizing: border-box;
                     width: 100%;
-                    min-height: 64px;
-                    padding-top: 4px;
+                    min-height: 50px;
                 }
 
                 .plot {
                     position: relative;
                     display: block;
-                    height: 36px;
+                    height: 34px;
+                    border: 1px solid var(--divider-color);
+                    border-radius: 4px;
+                    background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.04);
                 }
 
                 /* The present value sits on the right edge, and its dot would be cut in half there. */
@@ -2314,7 +2316,7 @@ var AdsbReceiverCard = class extends i4 {
                 .curve svg {
                     display: block;
                     width: 100%;
-                    height: 36px;
+                    height: 34px;
                 }
 
                 svg path {
@@ -2331,9 +2333,10 @@ var AdsbReceiverCard = class extends i4 {
                     stroke-width: 6;
                 }
 
-                svg .base {
+                svg .grid {
                     stroke: var(--divider-color);
                     stroke-width: 1;
+                    stroke-dasharray: 2 3;
                     vector-effect: non-scaling-stroke;
                 }
 
@@ -2376,12 +2379,17 @@ var AdsbReceiverCard = class extends i4 {
                     justify-content: space-between;
                     gap: 8px;
                     font-size: 11px;
+                    line-height: 14px;
                     color: var(--secondary-text-color);
                 }
 
-                /* A line of levels and the bar, with room under the bar before the tabs. */
+                .caption span {
+                    min-width: 0;
+                }
+
+                /* A line of levels and the bar. */
                 .meter {
-                    height: 32px;
+                    height: 24px;
                 }
 
                 .levels {
@@ -2389,7 +2397,7 @@ var AdsbReceiverCard = class extends i4 {
                     justify-content: space-between;
                     gap: 12px;
                     font-size: 12px;
-                    line-height: 18px;
+                    line-height: 16px;
                     color: var(--secondary-text-color);
                 }
 
@@ -2510,8 +2518,7 @@ var AdsbReceiverCard = class extends i4 {
                     scrollbar-width: thin;
                 }
 
-                /* Filling its rows up to a limit, the pane shrinks but never grows, as the room left over goes under the top
-                   and fillRows would otherwise measure it as content, keeping the card from ever shrinking. */
+                /* Filling its rows up to a limit, the pane shrinks but never grows, so the room left over stays under it. */
                 ha-card.held.filled > .pane {
                     flex-grow: 0;
                 }
@@ -2771,13 +2778,7 @@ __decorateClass([
 ], AdsbReceiverCard.prototype, "hover", 2);
 __decorateClass([
   r5()
-], AdsbReceiverCard.prototype, "width", 2);
-__decorateClass([
-  r5()
 ], AdsbReceiverCard.prototype, "filled", 2);
-__decorateClass([
-  r5()
-], AdsbReceiverCard.prototype, "spare", 2);
 if (!customElements.get("adsb-receiver-card")) {
   console.info(
     `%c  ADSB-RECEIVER-CARD 
